@@ -1,0 +1,461 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Box,
+  Typography,
+  Button,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  Paper,
+  TextField,
+  Chip,
+  useTheme,
+  useMediaQuery,
+  CircularProgress
+} from '@mui/material';
+import {
+  Send as SendIcon,
+  Attachment as AttachmentIcon,
+  Email as EmailIcon,
+  PictureAsPdf as PdfIcon,
+  InsertDriveFile as FileIcon,
+  Image as ImageIcon
+} from '@mui/icons-material';
+import axios from 'axios'; // axios version 1.x
+
+const MessagingCenter = ({ initialMessages = [] }) => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  
+  const [messages, setMessages] = useState(initialMessages);
+  const [selectedMessage, setSelectedMessage] = useState(null);
+  const [replyText, setReplyText] = useState('');
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    // If no initial messages provided, fetch them from API
+    if (messages.length === 0) {
+      fetchMessages();
+    }
+  }, []);
+
+  const fetchMessages = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get('/api/v1/messages');
+      setMessages(response.data.data);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+      setLoading(false);
+    }
+  };
+
+  const selectMessage = (message) => {
+    setSelectedMessage(message);
+    
+    // If message is unread, mark it as read
+    if (!message.is_read) {
+      markAsRead(message.id);
+    }
+    
+    // Reset reply form
+    setReplyText('');
+    setSelectedFiles([]);
+  };
+
+  const markAsRead = async (messageId) => {
+    try {
+      await axios.post(`/api/v1/messages/${messageId}/read`);
+      
+      // Update local state to reflect the read status
+      setMessages(messages.map(message => {
+        if (message.id === messageId) {
+          return {
+            ...message,
+            is_read: true,
+            read_at: new Date().toISOString(),
+            read_status: 'Read'
+          };
+        }
+        return message;
+      }));
+    } catch (error) {
+      console.error('Error marking message as read:', error);
+    }
+  };
+
+  const formatMessageBody = (body) => {
+    if (!body) return '';
+    return body.split('\n').map((line, index) => (
+      <React.Fragment key={index}>
+        {line}
+        <br />
+      </React.Fragment>
+    ));
+  };
+
+  const handleFileUpload = (event) => {
+    const files = Array.from(event.target.files);
+    setSelectedFiles([...selectedFiles, ...files]);
+  };
+
+  const removeFile = (index) => {
+    const newFiles = [...selectedFiles];
+    newFiles.splice(index, 1);
+    setSelectedFiles(newFiles);
+  };
+
+  const sendReply = async () => {
+    if (!replyText.trim()) {
+      return;
+    }
+    
+    try {
+      setSending(true);
+      
+      // Create form data for file uploads
+      const formData = new FormData();
+      formData.append('recipient_id', selectedMessage.sender_user_id);
+      formData.append('subject', `RE: ${selectedMessage.subject}`);
+      formData.append('body', replyText);
+      formData.append('application_id', selectedMessage.application_id);
+      
+      // Add files if any
+      selectedFiles.forEach((file, index) => {
+        formData.append(`attachments[${index}]`, file);
+      });
+      
+      // Send the reply
+      const response = await axios.post('/api/v1/messages', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      
+      // Add the new message to our list
+      const newMessage = response.data.data;
+      setMessages([newMessage, ...messages]);
+      
+      // Select the new message to show it
+      setSelectedMessage(newMessage);
+      
+      // Reset form
+      setReplyText('');
+      setSelectedFiles([]);
+      setSending(false);
+    } catch (error) {
+      console.error('Error sending reply:', error);
+      setSending(false);
+      // You might want to show an error message to the user here
+    }
+  };
+
+  // Function to get the appropriate icon for an attachment
+  const getAttachmentIcon = (mimeType) => {
+    if (mimeType.includes('pdf')) {
+      return <PdfIcon color="action" />;
+    } else if (mimeType.includes('image')) {
+      return <ImageIcon color="action" />;
+    } else {
+      return <FileIcon color="action" />;
+    }
+  };
+
+  const getFormattedFileSize = (bytes) => {
+    if (bytes < 1024) return bytes + ' B';
+    else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    else return (bytes / 1048576).toFixed(1) + ' MB';
+  };
+
+  return (
+    <Box sx={{ 
+      display: 'flex', 
+      height: '100%', 
+      flexDirection: isMobile ? 'column' : 'row',
+      bgcolor: 'background.paper',
+      borderRadius: 1,
+      overflow: 'hidden',
+      boxShadow: 1
+    }}>
+      {/* Message List */}
+      <Paper 
+        elevation={0} 
+        sx={{ 
+          width: isMobile ? '100%' : '30%', 
+          borderRight: isMobile ? 'none' : `1px solid ${theme.palette.divider}`,
+          borderBottom: isMobile ? `1px solid ${theme.palette.divider}` : 'none',
+          display: 'flex',
+          flexDirection: 'column',
+          maxHeight: isMobile ? '50vh' : '100%'
+        }}
+      >
+        <Box sx={{ 
+          p: 2, 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          borderBottom: `1px solid ${theme.palette.divider}`
+        }}>
+          <Typography variant="h6">Messages</Typography>
+          <Button 
+            variant="contained" 
+            color="primary" 
+            startIcon={<EmailIcon />}
+            size={isMobile ? "small" : "medium"}
+          >
+            New Message
+          </Button>
+        </Box>
+        
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4 }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <List sx={{ overflow: 'auto', flex: 1, p: 0 }}>
+            {messages.length > 0 ? (
+              messages.map((message) => (
+                <ListItem 
+                  key={message.id}
+                  button 
+                  onClick={() => selectMessage(message)}
+                  selected={selectedMessage && selectedMessage.id === message.id}
+                  sx={{ 
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                    bgcolor: !message.is_read ? alpha(theme.palette.primary.light, 0.1) : 'inherit',
+                    '&.Mui-selected': {
+                      bgcolor: alpha(theme.palette.primary.main, 0.1),
+                    },
+                    '&.Mui-selected:hover': {
+                      bgcolor: alpha(theme.palette.primary.main, 0.15),
+                    }
+                  }}
+                >
+                  <ListItemText 
+                    primary={
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography 
+                          variant="subtitle1" 
+                          sx={{ 
+                            fontWeight: !message.is_read ? 700 : 400,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            maxWidth: '70%'
+                          }}
+                        >
+                          {message.sender.full_name}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {message.formatted_created_at}
+                        </Typography>
+                      </Box>
+                    }
+                    secondary={
+                      <>
+                        <Typography 
+                          variant="subtitle2" 
+                          sx={{ 
+                            fontWeight: !message.is_read ? 600 : 400,
+                            display: 'block',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          {message.subject}
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          sx={{
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}
+                        >
+                          {message.preview}
+                        </Typography>
+                      </>
+                    }
+                  />
+                </ListItem>
+              ))
+            ) : (
+              <Box sx={{ p: 3, textAlign: 'center' }}>
+                <Typography color="text.secondary">No messages found</Typography>
+              </Box>
+            )}
+          </List>
+        )}
+      </Paper>
+      
+      {/* Message Detail or Empty State */}
+      {selectedMessage ? (
+        <Box sx={{ 
+          flex: 1, 
+          p: 3, 
+          overflow: 'auto',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="h5" gutterBottom>
+              {selectedMessage.subject}
+            </Typography>
+            <Box sx={{ color: 'text.secondary', mb: 2 }}>
+              <Typography variant="body2" component="span" sx={{ mr: 2 }}>
+                <strong>From:</strong> {selectedMessage.sender.full_name}
+              </Typography>
+              <Typography variant="body2" component="span" sx={{ mr: 2 }}>
+                <strong>To:</strong> {selectedMessage.recipient.full_name}
+              </Typography>
+              <Typography variant="body2" component="span">
+                {selectedMessage.formatted_created_at}
+              </Typography>
+            </Box>
+            <Divider />
+          </Box>
+          
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="body1" color="text.primary" sx={{ lineHeight: 1.6 }}>
+              {formatMessageBody(selectedMessage.message_body)}
+            </Typography>
+          </Box>
+          
+          {selectedMessage.attachments.length > 0 && (
+            <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+              <Typography variant="subtitle1" gutterBottom>
+                Attachments
+              </Typography>
+              <Box sx={{ mt: 1 }}>
+                {selectedMessage.attachments.map((attachment) => (
+                  <Box 
+                    key={attachment.id} 
+                    sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      mb: 1,
+                      p: 1,
+                      borderRadius: 1,
+                      '&:hover': {
+                        bgcolor: 'action.hover'
+                      }
+                    }}
+                  >
+                    {getAttachmentIcon(attachment.mime_type)}
+                    <Box sx={{ ml: 1 }}>
+                      <Typography 
+                        component="a" 
+                        href={attachment.url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        sx={{ 
+                          color: 'primary.main', 
+                          textDecoration: 'none',
+                          '&:hover': { textDecoration: 'underline' },
+                          display: 'block'
+                        }}
+                      >
+                        {attachment.file_name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {attachment.formatted_file_size}
+                      </Typography>
+                    </Box>
+                  </Box>
+                ))}
+              </Box>
+            </Paper>
+          )}
+          
+          <Box sx={{ mt: 'auto', pt: 3, borderTop: `1px solid ${theme.palette.divider}` }}>
+            <Typography variant="subtitle1" gutterBottom>
+              Reply
+            </Typography>
+            <TextField
+              fullWidth
+              multiline
+              minRows={4}
+              maxRows={10}
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              placeholder="Type your reply here..."
+              variant="outlined"
+              sx={{ mb: 2 }}
+              disabled={sending}
+            />
+            
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', mb: 2 }}>
+              {selectedFiles.map((file, index) => (
+                <Chip
+                  key={index}
+                  label={`${file.name} (${getFormattedFileSize(file.size)})`}
+                  onDelete={() => removeFile(index)}
+                  sx={{ mr: 1, mb: 1 }}
+                  disabled={sending}
+                />
+              ))}
+            </Box>
+            
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Button
+                component="label"
+                startIcon={<AttachmentIcon />}
+                size="medium"
+                disabled={sending}
+              >
+                Attach Files
+                <input
+                  type="file"
+                  multiple
+                  hidden
+                  onChange={handleFileUpload}
+                  disabled={sending}
+                />
+              </Button>
+              
+              <Button
+                variant="contained"
+                color="primary"
+                endIcon={sending ? <CircularProgress size={16} color="inherit" /> : <SendIcon />}
+                onClick={sendReply}
+                disabled={!replyText.trim() || sending}
+              >
+                {sending ? 'Sending...' : 'Send Reply'}
+              </Button>
+            </Box>
+          </Box>
+        </Box>
+      ) : (
+        <Box 
+          sx={{ 
+            flex: 1, 
+            display: 'flex', 
+            justifyContent: 'center', 
+            alignItems: 'center',
+            bgcolor: 'background.default'
+          }}
+        >
+          <Box sx={{ textAlign: 'center', color: 'text.secondary', p: 3 }}>
+            <EmailIcon sx={{ fontSize: 60, mb: 2, opacity: 0.6 }} />
+            <Typography variant="h6">
+              Select a message to view its contents
+            </Typography>
+          </Box>
+        </Box>
+      )}
+    </Box>
+  );
+};
+
+// Used for message background highlight
+const alpha = (color, opacity) => {
+  return color + String(opacity).substring(1);
+};
+
+export default MessagingCenter;
