@@ -1,0 +1,59 @@
+#
+# This file defines code ownership and automatically assigns reviewers for pull requests
+# based on the files being changed. This ensures that the right team members review code
+# in their areas of expertise.
+#
+# For more information, see:
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Root files
+# Project leads are responsible for reviewing changes to root-level files
+/* @project-leads
+
+# GitHub Workflows and Templates
+# DevOps team is responsible for CI/CD workflows and GitHub templates
+/.github/ @devops-team
+
+# Backend Code
+# Backend team is responsible for Laravel application code
+/src/backend/ @backend-team
+
+# Frontend Code
+# Frontend team is responsible for React application code
+/src/web/ @frontend-team
+
+# Database Migrations
+# Database team and backend team jointly review database migrations
+/src/backend/database/migrations/ @database-team @backend-team
+
+# Infrastructure Code
+# DevOps team is responsible for infrastructure code including Terraform and Kubernetes configurations
+/infrastructure/ @devops-team
+
+# Documentation
+# Documentation team is responsible for all documentation files
+/docs/ @docs-team
+
+# AI Components
+# AI team and backend team jointly review AI service components
+/src/backend/app/Services/AI/ @ai-team @backend-team
+
+# Integration Services
+# Integration team and backend team jointly review integration services
+/src/backend/app/Services/Integration/ @integration-team @backend-team
+
+# Security-related Code
+# Security team and backend team jointly review security-related middleware
+/src/backend/app/Http/Middleware/ @security-team @backend-team
+
+# Testing Code
+# QA team is responsible for reviewing test files across the codebase
+**/*.test.* **/*.spec.* **/tests/ @qa-team
+
+# Workflow Editor Components
+# Frontend team and workflow team jointly review the WYSIWYG workflow editor components
+/src/web/src/components/WorkflowEditor/ @frontend-team @workflow-team
+
+# Payment Processing
+# Payment team is responsible for reviewing all payment-related code
+**/Payment*.* **/payment*.* @payment-team
