@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  labels:
+    app: admissions-platform
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: admissions-platform
+      tier: backend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: admissions-platform
+        tier: backend
+    spec:
+      containers:
+      - name: backend
+        image: admissions-platform/backend:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+          name: http
+        envFrom:
+        - configMapRef:
+            name: backend-env
+        - secretRef:
+            name: backend-secrets
+        resources:
+          limits:
+            cpu: "1"
+            memory: 1Gi
+          requests:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        volumeMounts:
+        - name: storage-volume
+          mountPath: /var/www/html/storage
+      volumes:
+      - name: storage-volume
+        persistentVolumeClaim:
+          claimName: backend-storage-pvc
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - admissions-platform
+                - key: tier
+                  operator: In
+                  values:
+                  - backend
+              topologyKey: kubernetes.io/hostname
