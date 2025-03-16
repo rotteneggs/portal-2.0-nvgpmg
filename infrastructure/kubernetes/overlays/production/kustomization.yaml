@@ -1,0 +1,89 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+metadata:
+  name: admissions-platform-production
+
+# Extend the base configuration
+resources:
+- ../../base
+
+# Set production namespace
+namespace: admissions-production
+
+# Add environment-specific labels
+commonLabels:
+  app: admissions-platform
+  environment: production
+
+# Include production-specific environment configuration
+patchesStrategicMerge:
+- env-configmap.yaml
+
+# Override environment variables for production
+configMapGenerator:
+- name: backend-env
+  behavior: merge
+  literals:
+  - APP_ENV=production
+  - APP_DEBUG=false
+  - APP_URL=https://admissions.example.edu
+  - LOG_LEVEL=error
+
+- name: frontend-env
+  behavior: merge
+  literals:
+  - REACT_APP_API_URL=https://admissions.example.edu/api
+  - REACT_APP_ENV=production
+
+# Configure production secrets
+secretGenerator:
+- name: backend-secrets
+  behavior: merge
+  type: Opaque
+  literals:
+  - APP_KEY=base64:production-environment-encryption-key
+  - DB_HOST=production-mysql.database.svc.cluster.local
+  - DB_DATABASE=admissions_production
+  - DB_USERNAME=admissions_user
+  - DB_PASSWORD=production-db-password
+  - REDIS_PASSWORD=production-redis-password
+  - MAIL_HOST=smtp.mailgun.org
+  - MAIL_PORT=587
+  - MAIL_USERNAME=admissions@example.edu
+  - MAIL_PASSWORD=production-mail-password
+  - STRIPE_KEY=production-stripe-key
+  - STRIPE_SECRET=production-stripe-secret
+  - OPENAI_API_KEY=production-openai-api-key
+
+# Use production-specific container images
+images:
+- name: admissions-platform/backend
+  newName: admissions-platform/backend
+  newTag: production
+- name: admissions-platform/frontend
+  newName: admissions-platform/frontend
+  newTag: production
+
+# Configure replica counts for high availability
+replicas:
+- name: backend
+  count: 4
+- name: frontend
+  count: 4
+- name: redis
+  count: 3
+
+# Configure production ingress hostname
+patchesJson6902:
+- target:
+    group: networking.k8s.io
+    version: v1
+    kind: Ingress
+    name: admissions-platform-ingress
+  patch:
+  - op: replace
+    path: /spec/rules/0/host
+    value: admissions.example.edu
+  - op: replace
+    path: /spec/tls/0/hosts/0
+    value: admissions.example.edu
