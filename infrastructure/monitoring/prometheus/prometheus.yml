@@ -1,0 +1,191 @@
+# Prometheus configuration file for the Student Admissions Enrollment Platform
+# This configuration defines scrape targets, alerting rules, and storage settings
+# for comprehensive monitoring of all system components.
+
+# Global settings for scrape intervals and timeouts
+global:
+  scrape_interval: 15s     # How frequently to scrape targets
+  evaluation_interval: 15s # How frequently to evaluate rules
+  scrape_timeout: 10s      # How long until a scrape request times out
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+      scheme: http
+      timeout: 5s
+      api_version: v2
+
+# Load alert rules from the separate alert-rules.yml file
+rule_files:
+  - 'alert-rules.yml'
+
+# Scrape configuration for each target
+scrape_configs:
+  # Scrape Prometheus's own metrics
+  - job_name: 'prometheus'
+    description: "Scrape Prometheus's own metrics"
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Scrape system metrics from node_exporter
+  - job_name: 'node_exporter'
+    description: 'Scrape system metrics from node_exporter'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          environment: 'production'
+    relabel_configs:
+      - source_labels: ['__address__']
+        target_label: 'instance'
+        replacement: 'admissions-platform'
+
+  # Scrape application metrics from the Laravel backend
+  - job_name: 'application'
+    description: 'Scrape application metrics from the Laravel backend'
+    scrape_interval: 15s
+    metrics_path: '/metrics'
+    scheme: http
+    static_configs:
+      - targets: ['backend:8000']
+        labels:
+          service: 'admissions-backend'
+          environment: 'production'
+
+  # Scrape MySQL metrics from mysqld_exporter
+  - job_name: 'mysql'
+    description: 'Scrape MySQL metrics from mysqld_exporter'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['mysqld-exporter:9104']
+        labels:
+          service: 'mysql-database'
+          environment: 'production'
+          team: 'database'
+
+  # Scrape Redis metrics from redis_exporter
+  - job_name: 'redis'
+    description: 'Scrape Redis metrics from redis_exporter'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'redis-cache'
+          environment: 'production'
+
+  # Scrape metrics from Laravel queue workers
+  - job_name: 'queue_workers'
+    description: 'Scrape metrics from Laravel queue workers'
+    scrape_interval: 15s
+    metrics_path: '/metrics'
+    scheme: http
+    static_configs:
+      - targets: ['queue-worker:8000']
+        labels:
+          service: 'queue-workers'
+          environment: 'production'
+
+  # Scrape metrics from integration services
+  - job_name: 'integrations'
+    description: 'Scrape metrics from integration services'
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+    scheme: http
+    static_configs:
+      - targets: ['integration-service:8000']
+        labels:
+          service: 'integration-service'
+          environment: 'production'
+
+  # Scrape Kubernetes metrics (when deployed in Kubernetes)
+  - job_name: 'kubernetes'
+    description: 'Scrape Kubernetes metrics (when deployed in Kubernetes)'
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names: ['admissions']
+    relabel_configs:
+      - source_labels: ['__meta_kubernetes_pod_annotation_prometheus_io_scrape']
+        action: keep
+        regex: true
+      - source_labels: ['__meta_kubernetes_pod_annotation_prometheus_io_path']
+        action: replace
+        target_label: '__metrics_path__'
+        regex: (.+)
+      - source_labels: ['__address__', '__meta_kubernetes_pod_annotation_prometheus_io_port']
+        action: replace
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: '$1:$2'
+        target_label: '__address__'
+      - action: labelmap
+        regex: __meta_kubernetes_pod_label_(.+)
+      - source_labels: ['__meta_kubernetes_namespace']
+        action: replace
+        target_label: 'kubernetes_namespace'
+      - source_labels: ['__meta_kubernetes_pod_name']
+        action: replace
+        target_label: 'kubernetes_pod_name'
+
+  # External HTTP checks for application endpoints
+  - job_name: 'blackbox'
+    description: 'External HTTP checks for application endpoints'
+    metrics_path: '/probe'
+    params:
+      module: ['http_2xx']
+    static_configs:
+      - targets: ['https://admissions.example.com/api/health', 'https://admissions.example.com/login', 'https://admissions.example.com/api/v1/status']
+        labels:
+          service: 'admissions-frontend'
+          environment: 'production'
+    relabel_configs:
+      - source_labels: ['__address__']
+        target_label: '__param_target'
+      - source_labels: ['__param_target']
+        target_label: 'instance'
+      - target_label: '__address__'
+        replacement: 'blackbox-exporter:9115'
+
+# Storage configuration
+storage:
+  tsdb:
+    path: '/prometheus'
+    retention_time: '15d'
+    retention_size: '10GB'
+
+# Remote storage configuration for long-term storage and high availability
+remote_write:
+  - url: 'http://thanos-receive:19291/api/v1/receive'
+    queue_config:
+      capacity: 10000
+      max_shards: 200
+      min_shards: 1
+      max_samples_per_send: 500
+
+remote_read:
+  - url: 'http://thanos-query:10902/api/v1/read'
+    read_recent: true
+
+# Security considerations for scrape configurations
+scrape_config_security:
+  description: 'Security considerations for scrape configurations'
+  authentication: 'Service-to-service authentication not required within Kubernetes namespace'
+  authorization: 'Network policies restrict access to metrics endpoints'
+  tls_config: 'TLS not required for internal communication, used for external endpoints'
+
+# Configuration for high availability deployment
+high_availability:
+  description: 'Configuration for high availability deployment'
+  federation: 'Thanos components enable long-term storage and high availability'
+  sharding: 'Multiple Prometheus instances can be deployed with different scrape configs'
+  deduplication: 'Thanos Query deduplicates metrics from multiple Prometheus instances'
+
+# Performance optimization settings
+performance_tuning:
+  description: 'Performance optimization settings'
+  scrape_intervals: 'Balanced for timely data without overwhelming targets'
+  storage_retention: '15 days of local storage with longer retention in remote storage'
+  query_optimization: 'Appropriate recording rules for common queries'
+  resource_allocation: 'Prometheus sized according to metric volume and cardinality'
