@@ -1,0 +1,504 @@
+/**
+ * Mock notification data for the Student Admissions Enrollment Platform
+ * This file provides realistic test data for notification-related features
+ * Version: 1.0.0
+ */
+
+export const notificationsData = {
+  data: [
+    {
+      id: 1,
+      type: 'APPLICATION_STATUS_CHANGE',
+      channel: 'IN_APP',
+      subject: 'Application Status Updated',
+      content: "Your application status has been updated to 'In Review'.",
+      data: {
+        application_id: 1,
+        status: 'IN_REVIEW',
+        previous_status: 'SUBMITTED',
+        application_type: 'UNDERGRADUATE',
+        academic_term: 'FALL',
+        academic_year: '2023-2024'
+      },
+      created_at: '2023-03-25T14:35:00Z',
+      recipient: {
+        id: 1,
+        notification_id: 1,
+        user_id: 1,
+        is_sent: true,
+        is_read: false,
+        sent_at: '2023-03-25T14:35:00Z',
+        read_at: null,
+        is_new: true,
+        created_at: '2023-03-25T14:35:00Z'
+      }
+    },
+    {
+      id: 2,
+      type: 'DOCUMENT_VERIFIED',
+      channel: 'IN_APP',
+      subject: 'Document Verified',
+      content: "Your document 'high_school_transcript.pdf' has been verified.",
+      data: {
+        document_id: 1,
+        document_type: 'TRANSCRIPT',
+        file_name: 'high_school_transcript.pdf',
+        application_id: 1
+      },
+      created_at: '2023-03-25T14:40:00Z',
+      recipient: {
+        id: 2,
+        notification_id: 2,
+        user_id: 1,
+        is_sent: true,
+        is_read: true,
+        sent_at: '2023-03-25T14:40:00Z',
+        read_at: '2023-03-25T15:10:00Z',
+        is_new: false,
+        created_at: '2023-03-25T14:40:00Z'
+      }
+    },
+    {
+      id: 3,
+      type: 'MESSAGE_RECEIVED',
+      channel: 'IN_APP',
+      subject: 'New Message from Admissions Office',
+      content: 'You have received a new message from the Admissions Office regarding your application.',
+      data: {
+        message_id: 1,
+        sender_name: 'Admissions Office',
+        sender_id: 5,
+        application_id: 1,
+        preview: 'We are reviewing your application and need additional information...'
+      },
+      created_at: '2023-03-26T10:15:00Z',
+      recipient: {
+        id: 3,
+        notification_id: 3,
+        user_id: 1,
+        is_sent: true,
+        is_read: true,
+        sent_at: '2023-03-26T10:15:00Z',
+        read_at: '2023-03-26T11:30:00Z',
+        is_new: false,
+        created_at: '2023-03-26T10:15:00Z'
+      }
+    },
+    {
+      id: 4,
+      type: 'DOCUMENT_REJECTED',
+      channel: 'IN_APP',
+      subject: 'Document Needs Resubmission',
+      content: "Your document 'sat_score_report.pdf' requires resubmission. Please upload a clearer copy.",
+      data: {
+        document_id: 5,
+        document_type: 'TEST_SCORE',
+        file_name: 'sat_score_report.pdf',
+        application_id: 1,
+        rejection_reason: 'Document is illegible. Please upload a clearer copy.'
+      },
+      created_at: '2023-03-27T09:45:00Z',
+      recipient: {
+        id: 4,
+        notification_id: 4,
+        user_id: 1,
+        is_sent: true,
+        is_read: false,
+        sent_at: '2023-03-27T09:45:00Z',
+        read_at: null,
+        is_new: true,
+        created_at: '2023-03-27T09:45:00Z'
+      }
+    },
+    {
+      id: 5,
+      type: 'DEADLINE_REMINDER',
+      channel: 'IN_APP',
+      subject: 'Upcoming Application Deadline',
+      content: 'This is a reminder that the deadline for submitting your application is approaching.',
+      data: {
+        deadline_date: '2023-04-15T23:59:59Z',
+        days_remaining: 7,
+        application_id: 2,
+        application_type: 'GRADUATE',
+        academic_term: 'SPRING',
+        academic_year: '2024-2025'
+      },
+      created_at: '2023-04-08T08:00:00Z',
+      recipient: {
+        id: 5,
+        notification_id: 5,
+        user_id: 1,
+        is_sent: true,
+        is_read: false,
+        sent_at: '2023-04-08T08:00:00Z',
+        read_at: null,
+        is_new: true,
+        created_at: '2023-04-08T08:00:00Z'
+      }
+    },
+    {
+      id: 6,
+      type: 'PAYMENT_RECEIVED',
+      channel: 'IN_APP',
+      subject: 'Payment Received',
+      content: 'Your payment of $75.00 for the application fee has been received.',
+      data: {
+        payment_id: 1,
+        amount: 75.0,
+        currency: 'USD',
+        payment_type: 'APPLICATION_FEE',
+        application_id: 1,
+        transaction_id: 'txn_1234567890',
+        payment_method: 'credit_card'
+      },
+      created_at: '2023-03-10T09:35:00Z',
+      recipient: {
+        id: 6,
+        notification_id: 6,
+        user_id: 1,
+        is_sent: true,
+        is_read: true,
+        sent_at: '2023-03-10T09:35:00Z',
+        read_at: '2023-03-10T09:40:00Z',
+        is_new: false,
+        created_at: '2023-03-10T09:35:00Z'
+      }
+    },
+    {
+      id: 7,
+      type: 'FINANCIAL_AID_UPDATE',
+      channel: 'IN_APP',
+      subject: 'Financial Aid Application Update',
+      content: 'Your financial aid application has been received and is under review.',
+      data: {
+        financial_aid_id: 1,
+        status: 'UNDER_REVIEW',
+        application_id: 1
+      },
+      created_at: '2023-03-30T14:20:00Z',
+      recipient: {
+        id: 7,
+        notification_id: 7,
+        user_id: 1,
+        is_sent: true,
+        is_read: false,
+        sent_at: '2023-03-30T14:20:00Z',
+        read_at: null,
+        is_new: true,
+        created_at: '2023-03-30T14:20:00Z'
+      }
+    },
+    {
+      id: 8,
+      type: 'SYSTEM_ANNOUNCEMENT',
+      channel: 'IN_APP',
+      subject: 'System Maintenance',
+      content: 'The system will be undergoing maintenance on April 15, 2023, from 2:00 AM to 4:00 AM EST. During this time, the platform will be unavailable.',
+      data: {
+        start_time: '2023-04-15T02:00:00Z',
+        end_time: '2023-04-15T04:00:00Z',
+        maintenance_type: 'scheduled',
+        affected_services: ['application_submission', 'document_upload']
+      },
+      created_at: '2023-04-10T12:00:00Z',
+      recipient: {
+        id: 8,
+        notification_id: 8,
+        user_id: 1,
+        is_sent: true,
+        is_read: true,
+        sent_at: '2023-04-10T12:00:00Z',
+        read_at: '2023-04-10T12:05:00Z',
+        is_new: false,
+        created_at: '2023-04-10T12:00:00Z'
+      }
+    },
+    {
+      id: 9,
+      type: 'DOCUMENT_VERIFIED',
+      channel: 'IN_APP',
+      subject: 'Document Verified',
+      content: "Your document 'drivers_license.jpg' has been verified.",
+      data: {
+        document_id: 2,
+        document_type: 'ID',
+        file_name: 'drivers_license.jpg',
+        application_id: 1
+      },
+      created_at: '2023-03-26T10:20:00Z',
+      recipient: {
+        id: 9,
+        notification_id: 9,
+        user_id: 1,
+        is_sent: true,
+        is_read: true,
+        sent_at: '2023-03-26T10:20:00Z',
+        read_at: '2023-03-26T11:30:00Z',
+        is_new: false,
+        created_at: '2023-03-26T10:20:00Z'
+      }
+    },
+    {
+      id: 10,
+      type: 'DOCUMENT_VERIFIED',
+      channel: 'IN_APP',
+      subject: 'Document Verified',
+      content: "Your document 'personal_statement.pdf' has been verified.",
+      data: {
+        document_id: 3,
+        document_type: 'PERSONAL_STATEMENT',
+        file_name: 'personal_statement.pdf',
+        application_id: 1
+      },
+      created_at: '2023-03-25T15:50:00Z',
+      recipient: {
+        id: 10,
+        notification_id: 10,
+        user_id: 1,
+        is_sent: true,
+        is_read: true,
+        sent_at: '2023-03-25T15:50:00Z',
+        read_at: '2023-03-25T16:15:00Z',
+        is_new: false,
+        created_at: '2023-03-25T15:50:00Z'
+      }
+    }
+  ],
+  meta: {
+    pagination: {
+      total: 15,
+      per_page: 10,
+      current_page: 1,
+      last_page: 2,
+      from: 1,
+      to: 10
+    }
+  },
+  unread_count: 4,
+  preferences: {
+    typePreferences: {
+      APPLICATION_STATUS_CHANGE: {
+        in_app: true,
+        email: true,
+        sms: false
+      },
+      DOCUMENT_VERIFIED: {
+        in_app: true,
+        email: true,
+        sms: false
+      },
+      DOCUMENT_REJECTED: {
+        in_app: true,
+        email: true,
+        sms: true
+      },
+      PAYMENT_RECEIVED: {
+        in_app: true,
+        email: true,
+        sms: false
+      },
+      PAYMENT_FAILED: {
+        in_app: true,
+        email: true,
+        sms: true
+      },
+      MESSAGE_RECEIVED: {
+        in_app: true,
+        email: true,
+        sms: false
+      },
+      DEADLINE_REMINDER: {
+        in_app: true,
+        email: true,
+        sms: true
+      },
+      ADMISSION_DECISION: {
+        in_app: true,
+        email: true,
+        sms: true
+      },
+      FINANCIAL_AID_UPDATE: {
+        in_app: true,
+        email: true,
+        sms: false
+      },
+      SYSTEM_ANNOUNCEMENT: {
+        in_app: true,
+        email: false,
+        sms: false
+      }
+    },
+    defaultPreferences: {
+      in_app: true,
+      email: true,
+      sms: false
+    }
+  }
+};
+
+/**
+ * Mock API to fetch notifications with pagination and filtering
+ * @param {Object} params - Query parameters
+ * @param {number} params.page - Page number
+ * @param {number} params.per_page - Items per page
+ * @param {string} params.type - Filter by notification type
+ * @param {boolean} params.unread_only - Show only unread notifications
+ * @returns {Promise<Object>} - Promise resolving to notification data
+ */
+export const fetchNotificationsMock = (params = {}) => {
+  return new Promise((resolve) => {
+    // Simulate API delay
+    setTimeout(() => {
+      let filteredData = [...notificationsData.data];
+      
+      // Apply type filter if provided
+      if (params.type) {
+        filteredData = filteredData.filter(notification => notification.type === params.type);
+      }
+      
+      // Apply unread filter if requested
+      if (params.unread_only) {
+        filteredData = filteredData.filter(notification => !notification.recipient.is_read);
+      }
+      
+      // Calculate pagination
+      const page = params.page || 1;
+      const perPage = params.per_page || 10;
+      const total = filteredData.length;
+      const lastPage = Math.ceil(total / perPage);
+      const from = (page - 1) * perPage + 1;
+      const to = Math.min(page * perPage, total);
+      
+      // Apply pagination
+      const paginatedData = filteredData.slice(from - 1, to);
+      
+      // Count unread notifications
+      const unreadCount = notificationsData.data.filter(
+        notification => !notification.recipient.is_read
+      ).length;
+      
+      resolve({
+        data: paginatedData,
+        meta: {
+          pagination: {
+            total,
+            per_page: perPage,
+            current_page: page,
+            last_page: lastPage,
+            from,
+            to
+          }
+        },
+        unread_count: unreadCount,
+        preferences: notificationsData.preferences
+      });
+    }, 300); // 300ms delay to simulate network latency
+  });
+};
+
+/**
+ * Mock API to mark a notification as read
+ * @param {number} notificationId - Notification ID to mark as read
+ * @returns {Promise<Object>} - Promise resolving to success response
+ */
+export const markNotificationAsReadMock = (notificationId) => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      // Find the notification in the mock data
+      const notification = notificationsData.data.find(n => n.id === notificationId);
+      
+      if (notification) {
+        // Update the read status
+        notification.recipient.is_read = true;
+        notification.recipient.read_at = new Date().toISOString();
+        notification.recipient.is_new = false;
+      }
+      
+      resolve({
+        success: true,
+        message: 'Notification marked as read',
+        notification
+      });
+    }, 200);
+  });
+};
+
+/**
+ * Mock API to mark all notifications as read
+ * @returns {Promise<Object>} - Promise resolving to success response
+ */
+export const markAllNotificationsAsReadMock = () => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      // Mark all notifications as read
+      notificationsData.data.forEach(notification => {
+        notification.recipient.is_read = true;
+        notification.recipient.read_at = new Date().toISOString();
+        notification.recipient.is_new = false;
+      });
+      
+      resolve({
+        success: true,
+        message: 'All notifications marked as read'
+      });
+    }, 200);
+  });
+};
+
+/**
+ * Mock API to update notification preferences
+ * @param {Object} preferences - New notification preferences
+ * @returns {Promise<Object>} - Promise resolving to updated preferences
+ */
+export const updateNotificationPreferencesMock = (preferences) => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      // Update preferences in mock data
+      notificationsData.preferences = preferences;
+      
+      resolve({
+        success: true,
+        message: 'Notification preferences updated',
+        preferences
+      });
+    }, 200);
+  });
+};
+
+/**
+ * Get icon name based on notification type
+ * @param {string} type - Notification type
+ * @returns {string} - Icon name
+ */
+export const getNotificationIcon = (type) => {
+  switch (type) {
+    case 'APPLICATION_STATUS_CHANGE':
+      return 'assignment';
+    case 'DOCUMENT_VERIFIED':
+      return 'check_circle';
+    case 'DOCUMENT_REJECTED':
+      return 'cancel';
+    case 'MESSAGE_RECEIVED':
+      return 'email';
+    case 'DEADLINE_REMINDER':
+      return 'access_time';
+    case 'PAYMENT_RECEIVED':
+      return 'payment';
+    case 'FINANCIAL_AID_UPDATE':
+      return 'account_balance';
+    case 'SYSTEM_ANNOUNCEMENT':
+      return 'announcement';
+    default:
+      return 'notifications';
+  }
+};
+
+export default {
+  notificationsData,
+  fetchNotificationsMock,
+  markNotificationAsReadMock,
+  markAllNotificationsAsReadMock,
+  updateNotificationPreferencesMock,
+  getNotificationIcon
+};
