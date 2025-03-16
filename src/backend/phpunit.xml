@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+         cacheDirectory=".phpunit.cache">
+    
+    <!-- Test Suites Definition -->
+    <testsuites>
+        <!-- Unit tests for models, services, and isolated components -->
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        
+        <!-- Feature tests for API endpoints and integration points -->
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
+        </testsuite>
+    </testsuites>
+    
+    <!-- Source Files for Coverage Analysis -->
+    <source>
+        <include>
+            <directory>app</directory>
+        </include>
+    </source>
+    
+    <!-- Code Coverage Configuration -->
+    <coverage includeUncoveredFiles="true" 
+              pathCoverage="false"
+              ignoreDeprecatedCodeUnits="true"
+              disableCodeCoverageIgnore="true">
+        <include>
+            <directory>app</directory>
+        </include>
+        <exclude>
+            <directory>app/Console</directory>
+            <directory>app/Exceptions</directory>
+            <directory>app/Providers</directory>
+            <file>app/Http/Middleware/Authenticate.php</file>
+            <file>app/Http/Middleware/RedirectIfAuthenticated.php</file>
+        </exclude>
+        <report>
+            <html outputDirectory="coverage"/>
+            <text outputFile="coverage.txt" showUncoveredFiles="true" showOnlySummary="false"/>
+            <clover outputFile="coverage.xml"/>
+        </report>
+    </coverage>
+    
+    <!-- PHP Configuration Settings -->
+    <php>
+        <ini name="memory_limit" value="512M"/>
+        <ini name="display_errors" value="true"/>
+        <ini name="error_reporting" value="E_ALL"/>
+    </php>
+    
+    <!-- Test Group Exclusions -->
+    <groups>
+        <exclude>
+            <group>slow</group>
+            <group>integration</group>
+        </exclude>
+    </groups>
+    
+    <!-- PHPUnit Extensions -->
+    <extensions>
+        <!-- No extensions configured -->
+    </extensions>
+    
+    <!-- Test Event Listeners -->
+    <listeners>
+        <!-- No listeners configured -->
+    </listeners>
+    
+    <!-- Test Execution Logging -->
+    <logging>
+        <junit outputFile="junit-report.xml"/>
+        <testdoxText outputFile="testdox.txt"/>
+    </logging>
+    
+    <!-- Testing Environment Variables -->
+    <php>
+        <!-- Laravel Environment Configuration -->
+        <env name="APP_ENV" value="testing"/>
+        <env name="DB_CONNECTION" value="sqlite"/>
+        <env name="DB_DATABASE" value=":memory:"/>
+        <env name="CACHE_DRIVER" value="array"/>
+        <env name="SESSION_DRIVER" value="array"/>
+        <env name="QUEUE_CONNECTION" value="sync"/>
+        <env name="MAIL_MAILER" value="array"/>
+        <env name="BROADCAST_DRIVER" value="null"/>
+        <env name="FILESYSTEM_DISK" value="local"/>
+        
+        <!-- Feature Flag Configuration for Testing -->
+        <env name="FEATURE_DOCUMENT_AI_VERIFICATION" value="false"/>
+        <env name="FEATURE_CHATBOT" value="false"/>
+        <env name="PAYMENT_SANDBOX_MODE" value="true"/>
+    </php>
+</phpunit>
