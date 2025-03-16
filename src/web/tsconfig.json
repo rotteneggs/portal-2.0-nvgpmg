@@ -1,0 +1,63 @@
+{
+  "compilerOptions": {
+    /* Base Options */
+    "target": "es2018",                                /* Specify ECMAScript target version */
+    "lib": ["dom", "dom.iterable", "esnext"],         /* Specify library files to be included in the compilation */
+    "jsx": "react-jsx",                               /* Specify JSX code generation: 'react-jsx' for the new transform in React 17+ */
+    
+    /* Modules */
+    "module": "esnext",                               /* Specify module code generation */
+    "moduleResolution": "node",                       /* Specify module resolution strategy */
+    "baseUrl": "src",                                 /* Base directory to resolve non-absolute module names */
+    "paths": {                                        /* Path mapping entries for module names */
+      "@/*": ["*"],
+      "@components/*": ["components/*"],
+      "@pages/*": ["pages/*"],
+      "@hooks/*": ["hooks/*"],
+      "@contexts/*": ["contexts/*"],
+      "@services/*": ["services/*"],
+      "@utils/*": ["utils/*"],
+      "@styles/*": ["styles/*"],
+      "@types/*": ["types/*"],
+      "@api/*": ["api/*"],
+      "@redux/*": ["redux/*"],
+      "@assets/*": ["assets/*"]
+    },
+    "resolveJsonModule": true,                        /* Include modules imported with .json extension */
+    
+    /* JavaScript Support */
+    "allowJs": true,                                  /* Allow JavaScript files to be compiled */
+    "skipLibCheck": true,                             /* Skip type checking of declaration files */
+    
+    /* Emit */
+    "noEmit": true,                                   /* Do not emit outputs (React will use Babel for transpilation) */
+    "isolatedModules": true,                          /* Ensure that each file can be safely transpiled without relying on other imports */
+    
+    /* Interop Constraints */
+    "esModuleInterop": true,                          /* Emit __importStar and __importDefault helpers for runtime babel ecosystem compatibility */
+    "allowSyntheticDefaultImports": true,             /* Allow default imports from modules with no default export */
+    "forceConsistentCasingInFileNames": true,         /* Ensure that casing is correct in imports */
+    
+    /* Type Checking */
+    "strict": true,                                   /* Enable all strict type-checking options */
+    "noFallthroughCasesInSwitch": true               /* Report errors for fallthrough cases in switch statement */
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.js",
+    "src/**/*.jsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "build",
+    "dist",
+    "coverage",
+    "public",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx"
+  ],
+  "extends": "./tsconfig.paths.json"
+}
