@@ -1,0 +1,628 @@
+<?php
+
+namespace App\Repositories;
+
+use App\Models\Workflow;
+use App\Models\WorkflowStage;
+use App\Models\WorkflowTransition;
+use Illuminate\Support\Collection;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
+use Exception;
+use Illuminate\Support\Facades\Log;
+
+/**
+ * Repository class for managing workflows, stages, and transitions for the
+ * Student Admissions Enrollment Platform.
+ */
+class WorkflowRepository
+{
+    /**
+     * Get all workflows with optional filtering
+     *
+     * @param array $filters Filters to apply (application_type, is_active)
+     * @return Collection
+     */
+    public function getAllWorkflows(array $filters = []): Collection
+    {
+        $query = Workflow::query();
+        
+        if (isset($filters['application_type'])) {
+            $query->where('application_type', $filters['application_type']);
+        }
+        
+        if (isset($filters['is_active'])) {
+            $query->where('is_active', $filters['is_active']);
+        }
+        
+        return $query->get();
+    }
+    
+    /**
+     * Get a workflow by ID with its stages and transitions
+     *
+     * @param int $id The workflow ID
+     * @return Workflow|null
+     */
+    public function getWorkflowById(int $id): ?Workflow
+    {
+        return Workflow::with([
+            'stages' => function($query) {
+                $query->orderBy('sequence');
+            },
+            'stages.assignedRole',
+            'transitions',
+            'transitions.sourceStage',
+            'transitions.targetStage'
+        ])->find($id);
+    }
+    
+    /**
+     * Get workflows by application type
+     *
+     * @param string $applicationType The application type (UNDERGRADUATE, GRADUATE, TRANSFER)
+     * @return Collection
+     */
+    public function getWorkflowsByType(string $applicationType): Collection
+    {
+        return Workflow::where('application_type', $applicationType)
+            ->where('is_active', true)
+            ->get();
+    }
+    
+    /**
+     * Create a new workflow with stages and transitions
+     *
+     * @param array $data Workflow data including stages and transitions
+     * @return Workflow
+     * @throws Exception
+     */
+    public function createWorkflow(array $data): Workflow
+    {
+        try {
+            DB::beginTransaction();
+            
+            // Create workflow
+            $workflow = new Workflow();
+            $workflow->name = $data['name'];
+            $workflow->description = $data['description'] ?? null;
+            $workflow->application_type = $data['application_type'];
+            $workflow->is_active = $data['is_active'] ?? false;
+            $workflow->created_by_user_id = $data['created_by_user_id'];
+            $workflow->save();
+            
+            // Create stages
+            if (!empty($data['stages'])) {
+                foreach ($data['stages'] as $stageData) {
+                    $stage = new WorkflowStage();
+                    $stage->workflow_id = $workflow->id;
+                    $stage->name = $stageData['name'];
+                    $stage->description = $stageData['description'] ?? null;
+                    $stage->sequence = $stageData['sequence'];
+                    $stage->required_documents = $stageData['required_documents'] ?? [];
+                    $stage->required_actions = $stageData['required_actions'] ?? [];
+                    $stage->notification_triggers = $stageData['notification_triggers'] ?? [];
+                    $stage->assigned_role_id = $stageData['assigned_role_id'];
+                    $stage->position = $stageData['position'] ?? null;
+                    $stage->save();
+                }
+            }
+            
+            // Create transitions
+            if (!empty($data['transitions'])) {
+                foreach ($data['transitions'] as $transitionData) {
+                    $transition = new WorkflowTransition();
+                    $transition->source_stage_id = $transitionData['source_stage_id'];
+                    $transition->target_stage_id = $transitionData['target_stage_id'];
+                    $transition->name = $transitionData['name'];
+                    $transition->description = $transitionData['description'] ?? null;
+                    $transition->transition_conditions = $transitionData['transition_conditions'] ?? [];
+                    $transition->required_permissions = $transitionData['required_permissions'] ?? [];
+                    $transition->is_automatic = $transitionData['is_automatic'] ?? false;
+                    $transition->save();
+                }
+            }
+            
+            DB::commit();
+            
+            return $this->getWorkflowById($workflow->id);
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to create workflow: ' . $e->getMessage(), [
+                'exception' => $e,
+                'data' => $data
+            ]);
+            throw $e;
+        }
+    }
+    
+    /**
+     * Update an existing workflow with its stages and transitions
+     *
+     * @param int $id The workflow ID
+     * @param array $data The updated workflow data
+     * @return Workflow|null
+     * @throws Exception
+     */
+    public function updateWorkflow(int $id, array $data): ?Workflow
+    {
+        try {
+            DB::beginTransaction();
+            
+            $workflow = Workflow::findOrFail($id);
+            
+            // Update workflow attributes
+            if (isset($data['name'])) {
+                $workflow->name = $data['name'];
+            }
+            
+            if (isset($data['description'])) {
+                $workflow->description = $data['description'];
+            }
+            
+            if (isset($data['application_type'])) {
+                $workflow->application_type = $data['application_type'];
+            }
+            
+            if (isset($data['is_active'])) {
+                $workflow->is_active = $data['is_active'];
+            }
+            
+            $workflow->save();
+            
+            // Update stages if provided
+            if (!empty($data['stages'])) {
+                // Get existing stage IDs
+                $existingStageIds = $workflow->stages->pluck('id')->toArray();
+                $providedStageIds = collect($data['stages'])->pluck('id')->filter()->toArray();
+                
+                // Determine stages to delete (existing but not in provided data)
+                $stageIdsToDelete = array_diff($existingStageIds, $providedStageIds);
+                if (!empty($stageIdsToDelete)) {
+                    WorkflowStage::whereIn('id', $stageIdsToDelete)->delete();
+                }
+                
+                // Update or create stages
+                foreach ($data['stages'] as $stageData) {
+                    if (!empty($stageData['id'])) {
+                        // Update existing stage
+                        $stage = WorkflowStage::find($stageData['id']);
+                        if ($stage) {
+                            $stage->name = $stageData['name'] ?? $stage->name;
+                            $stage->description = $stageData['description'] ?? $stage->description;
+                            $stage->sequence = $stageData['sequence'] ?? $stage->sequence;
+                            $stage->required_documents = $stageData['required_documents'] ?? $stage->required_documents;
+                            $stage->required_actions = $stageData['required_actions'] ?? $stage->required_actions;
+                            $stage->notification_triggers = $stageData['notification_triggers'] ?? $stage->notification_triggers;
+                            $stage->assigned_role_id = $stageData['assigned_role_id'] ?? $stage->assigned_role_id;
+                            $stage->position = $stageData['position'] ?? $stage->position;
+                            $stage->save();
+                        }
+                    } else {
+                        // Create new stage
+                        $stage = new WorkflowStage();
+                        $stage->workflow_id = $workflow->id;
+                        $stage->name = $stageData['name'];
+                        $stage->description = $stageData['description'] ?? null;
+                        $stage->sequence = $stageData['sequence'];
+                        $stage->required_documents = $stageData['required_documents'] ?? [];
+                        $stage->required_actions = $stageData['required_actions'] ?? [];
+                        $stage->notification_triggers = $stageData['notification_triggers'] ?? [];
+                        $stage->assigned_role_id = $stageData['assigned_role_id'];
+                        $stage->position = $stageData['position'] ?? null;
+                        $stage->save();
+                    }
+                }
+            }
+            
+            // Update transitions if provided
+            if (!empty($data['transitions'])) {
+                // Get existing transition IDs
+                $existingTransitionIds = $workflow->transitions->pluck('id')->toArray();
+                $providedTransitionIds = collect($data['transitions'])->pluck('id')->filter()->toArray();
+                
+                // Determine transitions to delete
+                $transitionIdsToDelete = array_diff($existingTransitionIds, $providedTransitionIds);
+                if (!empty($transitionIdsToDelete)) {
+                    WorkflowTransition::whereIn('id', $transitionIdsToDelete)->delete();
+                }
+                
+                // Update or create transitions
+                foreach ($data['transitions'] as $transitionData) {
+                    if (!empty($transitionData['id'])) {
+                        // Update existing transition
+                        $transition = WorkflowTransition::find($transitionData['id']);
+                        if ($transition) {
+                            $transition->source_stage_id = $transitionData['source_stage_id'] ?? $transition->source_stage_id;
+                            $transition->target_stage_id = $transitionData['target_stage_id'] ?? $transition->target_stage_id;
+                            $transition->name = $transitionData['name'] ?? $transition->name;
+                            $transition->description = $transitionData['description'] ?? $transition->description;
+                            $transition->transition_conditions = $transitionData['transition_conditions'] ?? $transition->transition_conditions;
+                            $transition->required_permissions = $transitionData['required_permissions'] ?? $transition->required_permissions;
+                            $transition->is_automatic = $transitionData['is_automatic'] ?? $transition->is_automatic;
+                            $transition->save();
+                        }
+                    } else {
+                        // Create new transition
+                        $transition = new WorkflowTransition();
+                        $transition->source_stage_id = $transitionData['source_stage_id'];
+                        $transition->target_stage_id = $transitionData['target_stage_id'];
+                        $transition->name = $transitionData['name'];
+                        $transition->description = $transitionData['description'] ?? null;
+                        $transition->transition_conditions = $transitionData['transition_conditions'] ?? [];
+                        $transition->required_permissions = $transitionData['required_permissions'] ?? [];
+                        $transition->is_automatic = $transitionData['is_automatic'] ?? false;
+                        $transition->save();
+                    }
+                }
+            }
+            
+            DB::commit();
+            
+            return $this->getWorkflowById($workflow->id);
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to update workflow: ' . $e->getMessage(), [
+                'exception' => $e,
+                'workflow_id' => $id,
+                'data' => $data
+            ]);
+            throw $e;
+        }
+    }
+    
+    /**
+     * Delete a workflow and its stages and transitions
+     *
+     * @param int $id The workflow ID
+     * @return bool
+     * @throws Exception
+     */
+    public function deleteWorkflow(int $id): bool
+    {
+        try {
+            DB::beginTransaction();
+            
+            $workflow = Workflow::findOrFail($id);
+            
+            // Delete associated transitions
+            WorkflowTransition::whereHas('sourceStage', function (Builder $query) use ($id) {
+                $query->where('workflow_id', $id);
+            })->orWhereHas('targetStage', function (Builder $query) use ($id) {
+                $query->where('workflow_id', $id);
+            })->delete();
+            
+            // Delete associated stages
+            WorkflowStage::where('workflow_id', $id)->delete();
+            
+            // Delete the workflow
+            $workflow->delete();
+            
+            DB::commit();
+            
+            return true;
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to delete workflow: ' . $e->getMessage(), [
+                'exception' => $e,
+                'workflow_id' => $id
+            ]);
+            throw $e;
+        }
+    }
+    
+    /**
+     * Get stages for a workflow
+     *
+     * @param int $workflowId The workflow ID
+     * @return Collection
+     */
+    public function getStagesByWorkflow(int $workflowId): Collection
+    {
+        return WorkflowStage::where('workflow_id', $workflowId)
+            ->orderBy('sequence')
+            ->with('assignedRole')
+            ->get();
+    }
+    
+    /**
+     * Get transitions for a workflow
+     *
+     * @param int $workflowId The workflow ID
+     * @return Collection
+     */
+    public function getTransitionsByWorkflow(int $workflowId): Collection
+    {
+        return WorkflowTransition::whereHas('sourceStage', function (Builder $query) use ($workflowId) {
+            $query->where('workflow_id', $workflowId);
+        })->with(['sourceStage', 'targetStage'])
+        ->get();
+    }
+    
+    /**
+     * Get available transitions for a given stage
+     *
+     * @param int $stageId The stage ID
+     * @return Collection
+     */
+    public function getTransitionsForStage(int $stageId): Collection
+    {
+        return WorkflowTransition::where('source_stage_id', $stageId)
+            ->with('targetStage')
+            ->get();
+    }
+    
+    /**
+     * Get valid transitions for a given stage based on application data
+     *
+     * @param int $stageId The stage ID
+     * @param array $applicationData The application data to evaluate against conditions
+     * @return Collection
+     */
+    public function getValidTransitionsForStage(int $stageId, array $applicationData): Collection
+    {
+        $transitions = $this->getTransitionsForStage($stageId);
+        
+        return $transitions->filter(function ($transition) use ($applicationData) {
+            return $this->isTransitionValid($transition->id, $applicationData);
+        });
+    }
+    
+    /**
+     * Determine if a transition is valid based on conditions
+     *
+     * @param int $transitionId The transition ID
+     * @param array $applicationData The application data to evaluate
+     * @return bool
+     */
+    public function isTransitionValid(int $transitionId, array $applicationData): bool
+    {
+        $transition = WorkflowTransition::findOrFail($transitionId);
+        
+        if (empty($transition->transition_conditions)) {
+            return true;
+        }
+        
+        foreach ($transition->transition_conditions as $condition) {
+            $field = $condition['field'] ?? null;
+            $operator = $condition['operator'] ?? null;
+            $value = $condition['value'] ?? null;
+            
+            if (!$field || !$operator || !isset($value)) {
+                continue;
+            }
+            
+            $fieldValue = $applicationData[$field] ?? null;
+            
+            if (!$this->evaluateCondition($fieldValue, $operator, $value)) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Execute an automatic transition if applicable
+     *
+     * @param int $applicationId The application ID
+     * @param int $currentStageId The current stage ID
+     * @param array $applicationData The application data
+     * @return array|null Returns [new_stage_id, transition_id] or null if no automatic transition
+     */
+    public function executeAutomaticTransition(int $applicationId, int $currentStageId, array $applicationData): ?array
+    {
+        $transitions = WorkflowTransition::where('source_stage_id', $currentStageId)
+            ->where('is_automatic', true)
+            ->get();
+            
+        foreach ($transitions as $transition) {
+            if ($this->isTransitionValid($transition->id, $applicationData)) {
+                // Log the transition
+                $this->logStageTransition($applicationId, $currentStageId, $transition->target_stage_id, $transition->id);
+                
+                return [
+                    'new_stage_id' => $transition->target_stage_id,
+                    'transition_id' => $transition->id
+                ];
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Manually transition an application to a new stage
+     *
+     * @param int $applicationId The application ID
+     * @param int $currentStageId The current stage ID
+     * @param int $transitionId The transition ID to use
+     * @param array $applicationData The application data for validation
+     * @return bool
+     * @throws Exception
+     */
+    public function transitionApplication(int $applicationId, int $currentStageId, int $transitionId, array $applicationData): bool
+    {
+        try {
+            $transition = WorkflowTransition::findOrFail($transitionId);
+            
+            // Verify the transition's source stage matches the current stage
+            if ($transition->source_stage_id != $currentStageId) {
+                throw new Exception("Invalid transition: source stage mismatch");
+            }
+            
+            // Verify the transition is valid based on conditions
+            if (!$this->isTransitionValid($transitionId, $applicationData)) {
+                throw new Exception("Invalid transition: conditions not met");
+            }
+            
+            // Log the transition
+            $this->logStageTransition($applicationId, $currentStageId, $transition->target_stage_id, $transitionId);
+            
+            return true;
+        } catch (Exception $e) {
+            Log::error('Failed to transition application: ' . $e->getMessage(), [
+                'exception' => $e,
+                'application_id' => $applicationId,
+                'current_stage_id' => $currentStageId,
+                'transition_id' => $transitionId
+            ]);
+            throw $e;
+        }
+    }
+    
+    /**
+     * Log a stage transition
+     *
+     * @param int $applicationId The application ID
+     * @param int $fromStageId The source stage ID
+     * @param int $toStageId The target stage ID
+     * @param int $transitionId The transition ID used
+     * @return void
+     */
+    private function logStageTransition(int $applicationId, int $fromStageId, int $toStageId, int $transitionId): void
+    {
+        // This would integrate with your application's history/audit logging system
+        // For now, we'll just log to the Laravel log
+        Log::info('Application stage transition', [
+            'application_id' => $applicationId,
+            'from_stage_id' => $fromStageId,
+            'to_stage_id' => $toStageId,
+            'transition_id' => $transitionId,
+            'timestamp' => now()
+        ]);
+        
+        // In a real implementation, you would save this to a database table
+        // ApplicationStatusHistory::create([
+        //     'application_id' => $applicationId,
+        //     'from_stage_id' => $fromStageId,
+        //     'to_stage_id' => $toStageId,
+        //     'transition_id' => $transitionId,
+        //     'created_by_user_id' => auth()->id()
+        // ]);
+    }
+    
+    /**
+     * Evaluate a single condition
+     *
+     * @param mixed $fieldValue The actual field value
+     * @param string $operator The comparison operator
+     * @param mixed $value The expected value
+     * @return bool
+     */
+    private function evaluateCondition($fieldValue, string $operator, $value): bool
+    {
+        switch ($operator) {
+            case 'equals':
+                return $fieldValue == $value;
+            case 'not_equals':
+                return $fieldValue != $value;
+            case 'greater_than':
+                return $fieldValue > $value;
+            case 'less_than':
+                return $fieldValue < $value;
+            case 'greater_than_or_equals':
+                return $fieldValue >= $value;
+            case 'less_than_or_equals':
+                return $fieldValue <= $value;
+            case 'contains':
+                return is_array($fieldValue) 
+                    ? in_array($value, $fieldValue) 
+                    : (is_string($fieldValue) && strpos($fieldValue, $value) !== false);
+            case 'not_contains':
+                return is_array($fieldValue) 
+                    ? !in_array($value, $fieldValue) 
+                    : (is_string($fieldValue) && strpos($fieldValue, $value) === false);
+            case 'in':
+                return is_array($value) ? in_array($fieldValue, $value) : false;
+            case 'not_in':
+                return is_array($value) ? !in_array($fieldValue, $value) : true;
+            case 'empty':
+                return empty($fieldValue);
+            case 'not_empty':
+                return !empty($fieldValue);
+            default:
+                return false;
+        }
+    }
+    
+    /**
+     * Duplicate a workflow with all its stages and transitions
+     *
+     * @param int $id The workflow ID to duplicate
+     * @param string $newName The name for the duplicated workflow
+     * @return Workflow
+     * @throws Exception
+     */
+    public function duplicateWorkflow(int $id, string $newName): Workflow
+    {
+        try {
+            DB::beginTransaction();
+            
+            $original = $this->getWorkflowById($id);
+            if (!$original) {
+                throw new Exception("Workflow not found");
+            }
+            
+            // Create a new workflow
+            $duplicate = new Workflow();
+            $duplicate->name = $newName;
+            $duplicate->description = $original->description;
+            $duplicate->application_type = $original->application_type;
+            $duplicate->is_active = false; // Set to inactive by default
+            $duplicate->created_by_user_id = auth()->id();
+            $duplicate->save();
+            
+            // Map of original stage IDs to new stage IDs
+            $stageIdMap = [];
+            
+            // Duplicate stages
+            foreach ($original->stages as $originalStage) {
+                $newStage = new WorkflowStage();
+                $newStage->workflow_id = $duplicate->id;
+                $newStage->name = $originalStage->name;
+                $newStage->description = $originalStage->description;
+                $newStage->sequence = $originalStage->sequence;
+                $newStage->required_documents = $originalStage->required_documents;
+                $newStage->required_actions = $originalStage->required_actions;
+                $newStage->notification_triggers = $originalStage->notification_triggers;
+                $newStage->assigned_role_id = $originalStage->assigned_role_id;
+                $newStage->position = $originalStage->position;
+                $newStage->save();
+                
+                // Store mapping for transitions
+                $stageIdMap[$originalStage->id] = $newStage->id;
+            }
+            
+            // Duplicate transitions
+            foreach ($original->transitions as $originalTransition) {
+                // Skip if we don't have the source or target stage in our map
+                if (!isset($stageIdMap[$originalTransition->source_stage_id]) || 
+                    !isset($stageIdMap[$originalTransition->target_stage_id])) {
+                    continue;
+                }
+                
+                $newTransition = new WorkflowTransition();
+                $newTransition->source_stage_id = $stageIdMap[$originalTransition->source_stage_id];
+                $newTransition->target_stage_id = $stageIdMap[$originalTransition->target_stage_id];
+                $newTransition->name = $originalTransition->name;
+                $newTransition->description = $originalTransition->description;
+                $newTransition->transition_conditions = $originalTransition->transition_conditions;
+                $newTransition->required_permissions = $originalTransition->required_permissions;
+                $newTransition->is_automatic = $originalTransition->is_automatic;
+                $newTransition->save();
+            }
+            
+            DB::commit();
+            
+            return $this->getWorkflowById($duplicate->id);
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to duplicate workflow: ' . $e->getMessage(), [
+                'exception' => $e,
+                'original_workflow_id' => $id
+            ]);
+            throw $e;
+        }
+    }
+}
