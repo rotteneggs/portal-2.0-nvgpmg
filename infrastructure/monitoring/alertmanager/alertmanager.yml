@@ -1,0 +1,463 @@
+# Global configuration
+global:
+  # The time to wait before resending an alert to a silenced alert
+  resolve_timeout: 5m
+  # SMTP settings for email notifications
+  smtp_smarthost: 'smtp.example.com:587'
+  smtp_from: 'alertmanager@admissions.example.com'
+  smtp_auth_username: 'alertmanager'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+  smtp_require_tls: true
+  # Slack API URL for Slack notifications
+  slack_api_url: '${SLACK_API_URL}'
+  # PagerDuty URL for PagerDuty notifications
+  pagerduty_url: 'https://events.pagerduty.com/v2/enqueue'
+
+# Route definition - how alerts are routed based on labels
+route:
+  # Default receiver when no route matches
+  receiver: 'default'
+  # Group alerts by these labels
+  group_by: ['alertname', 'severity', 'team']
+  # Wait for group_wait before sending initial notification for a new group
+  group_wait: 30s
+  # Wait for group_interval before sending an updated notification for a group
+  group_interval: 5m
+  # Wait for repeat_interval before resending a notification for a group
+  repeat_interval: 4h
+  
+  # Routes for different alert types
+  routes:
+    # Critical alerts - send to PagerDuty and continue evaluation for team-specific routing
+    - match:
+        severity: 'critical'
+      receiver: 'pagerduty'
+      group_wait: 30s
+      group_interval: 1m
+      repeat_interval: 30m
+      continue: true
+    
+    # Critical Infrastructure alerts
+    - match:
+        severity: 'critical'
+        team: 'infrastructure'
+      receiver: 'infrastructure-critical'
+      group_wait: 30s
+      group_interval: 1m
+      repeat_interval: 30m
+    
+    # Critical Application alerts
+    - match:
+        severity: 'critical'
+        team: 'application'
+      receiver: 'application-critical'
+      group_wait: 30s
+      group_interval: 1m
+      repeat_interval: 30m
+    
+    # Critical Database alerts
+    - match:
+        severity: 'critical'
+        team: 'database'
+      receiver: 'database-critical'
+      group_wait: 30s
+      group_interval: 1m
+      repeat_interval: 30m
+    
+    # Critical Integration alerts
+    - match:
+        severity: 'critical'
+        team: 'integration'
+      receiver: 'integration-critical'
+      group_wait: 30s
+      group_interval: 1m
+      repeat_interval: 30m
+    
+    # Critical Security alerts
+    - match:
+        severity: 'critical'
+        team: 'security'
+      receiver: 'security-critical'
+      group_wait: 30s
+      group_interval: 1m
+      repeat_interval: 30m
+    
+    # Warning Infrastructure alerts
+    - match:
+        severity: 'warning'
+        team: 'infrastructure'
+      receiver: 'infrastructure-warning'
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 2h
+    
+    # Warning Application alerts
+    - match:
+        severity: 'warning'
+        team: 'application'
+      receiver: 'application-warning'
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 2h
+    
+    # Warning Database alerts
+    - match:
+        severity: 'warning'
+        team: 'database'
+      receiver: 'database-warning'
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 2h
+    
+    # Warning Integration alerts
+    - match:
+        severity: 'warning'
+        team: 'integration'
+      receiver: 'integration-warning'
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 2h
+    
+    # Warning Security alerts
+    - match:
+        severity: 'warning'
+        team: 'security'
+      receiver: 'security-warning'
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 2h
+    
+    # Warning Business alerts
+    - match:
+        severity: 'warning'
+        team: 'business'
+      receiver: 'business-warning'
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 2h
+    
+    # SLA Violation alerts
+    - match_re:
+        alertname: '.*SLAViolation.*'
+      receiver: 'sla-violations'
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 1h
+
+# Inhibition rules to prevent notification spam
+inhibit_rules:
+  # Don't send warning alerts if there's already a critical alert for the same issue
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    # Apply this rule if these labels have the same value
+    equal: ['alertname', 'instance', 'job']
+  
+  # Don't send CPU/memory/disk alerts if the instance is already known to be down
+  - source_match:
+      alertname: 'InstanceDown'
+    target_match_re:
+      alertname: '.*HighCPUUsage|.*HighMemoryUsage|.*HighDiskUsage'
+    equal: ['instance']
+  
+  # Don't send database metric alerts if the database is already known to be down
+  - source_match:
+      alertname: 'DatabaseDown'
+    target_match_re:
+      alertname: '.*HighDatabaseConnectionUsage|.*HighReplicationLag|.*HighSlowQueryRate'
+    equal: ['instance']
+  
+  # Don't send Redis metric alerts if Redis is already known to be down
+  - source_match:
+      alertname: 'RedisDown'
+    target_match_re:
+      alertname: '.*RedisMemoryUsage|.*RedisKeyEvictionRate'
+    equal: ['instance']
+
+# Notification receivers
+receivers:
+  # Default receiver for alerts that don't match specific routes
+  - name: 'default'
+    email_configs:
+      - to: 'monitoring@admissions.example.com'
+        send_resolved: true
+    slack_configs:
+      - channel: '#monitoring'
+        send_resolved: true
+        title: '{{ .GroupLabels.alertname }}'
+        title_link: '{{ .CommonAnnotations.dashboard }}'
+        text: >-
+          {{ range .Alerts }}*Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          *Instance:* {{ .Labels.instance }}
+          {{ end }}
+  
+  # PagerDuty receiver for critical alerts
+  - name: 'pagerduty'
+    pagerduty_configs:
+      - service_key: '${PAGERDUTY_SERVICE_KEY}'
+        description: '{{ .CommonAnnotations.summary }}'
+        details:
+          firing: '{{ .Alerts.Firing | len }}'
+          resolved: '{{ .Alerts.Resolved | len }}'
+          num_firing: '{{ .Alerts.Firing | len }}'
+          num_resolved: '{{ .Alerts.Resolved | len }}'
+          instance: '{{ range .Alerts }}{{ .Labels.instance }}{{ end }}'
+          summary: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+          description: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+        client: 'Alertmanager'
+        client_url: '{{ .CommonAnnotations.dashboard }}'
+        severity: 'critical'
+        class: '{{ .CommonLabels.alertname }}'
+        component: '{{ .CommonLabels.job }}'
+        group: '{{ .CommonLabels.team }}'
+        send_resolved: true
+  
+  # Critical Infrastructure team alerts
+  - name: 'infrastructure-critical'
+    email_configs:
+      - to: 'infrastructure-team@admissions.example.com'
+        send_resolved: true
+    slack_configs:
+      - channel: '#infrastructure-alerts'
+        send_resolved: true
+        title: '[CRITICAL] {{ .GroupLabels.alertname }}'
+        title_link: '{{ .CommonAnnotations.dashboard }}'
+        text: >-
+          {{ range .Alerts }}*Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          *Instance:* {{ .Labels.instance }}
+          {{ end }}
+        color: '#FF0000'
+  
+  # Critical Application team alerts
+  - name: 'application-critical'
+    email_configs:
+      - to: 'application-team@admissions.example.com'
+        send_resolved: true
+    slack_configs:
+      - channel: '#application-alerts'
+        send_resolved: true
+        title: '[CRITICAL] {{ .GroupLabels.alertname }}'
+        title_link: '{{ .CommonAnnotations.dashboard }}'
+        text: >-
+          {{ range .Alerts }}*Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          *Instance:* {{ .Labels.instance }}
+          {{ end }}
+        color: '#FF0000'
+  
+  # Critical Database team alerts
+  - name: 'database-critical'
+    email_configs:
+      - to: 'database-team@admissions.example.com'
+        send_resolved: true
+    slack_configs:
+      - channel: '#database-alerts'
+        send_resolved: true
+        title: '[CRITICAL] {{ .GroupLabels.alertname }}'
+        title_link: '{{ .CommonAnnotations.dashboard }}'
+        text: >-
+          {{ range .Alerts }}*Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          *Instance:* {{ .Labels.instance }}
+          {{ end }}
+        color: '#FF0000'
+  
+  # Critical Integration team alerts
+  - name: 'integration-critical'
+    email_configs:
+      - to: 'integration-team@admissions.example.com'
+        send_resolved: true
+    slack_configs:
+      - channel: '#integration-alerts'
+        send_resolved: true
+        title: '[CRITICAL] {{ .GroupLabels.alertname }}'
+        title_link: '{{ .CommonAnnotations.dashboard }}'
+        text: >-
+          {{ range .Alerts }}*Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          *Instance:* {{ .Labels.instance }}
+          {{ end }}
+        color: '#FF0000'
+  
+  # Critical Security team alerts
+  - name: 'security-critical'
+    email_configs:
+      - to: 'security-team@admissions.example.com'
+        send_resolved: true
+    slack_configs:
+      - channel: '#security-alerts'
+        send_resolved: true
+        title: '[CRITICAL] {{ .GroupLabels.alertname }}'
+        title_link: '{{ .CommonAnnotations.dashboard }}'
+        text: >-
+          {{ range .Alerts }}*Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          *Instance:* {{ .Labels.instance }}
+          {{ end }}
+        color: '#FF0000'
+  
+  # Warning Infrastructure team alerts
+  - name: 'infrastructure-warning'
+    email_configs:
+      - to: 'infrastructure-team@admissions.example.com'
+        send_resolved: true
+    slack_configs:
+      - channel: '#infrastructure-alerts'
+        send_resolved: true
+        title: '[WARNING] {{ .GroupLabels.alertname }}'
+        title_link: '{{ .CommonAnnotations.dashboard }}'
+        text: >-
+          {{ range .Alerts }}*Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          *Instance:* {{ .Labels.instance }}
+          {{ end }}
+        color: '#FFA500'
+  
+  # Warning Application team alerts
+  - name: 'application-warning'
+    email_configs:
+      - to: 'application-team@admissions.example.com'
+        send_resolved: true
+    slack_configs:
+      - channel: '#application-alerts'
+        send_resolved: true
+        title: '[WARNING] {{ .GroupLabels.alertname }}'
+        title_link: '{{ .CommonAnnotations.dashboard }}'
+        text: >-
+          {{ range .Alerts }}*Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          *Instance:* {{ .Labels.instance }}
+          {{ end }}
+        color: '#FFA500'
+  
+  # Warning Database team alerts
+  - name: 'database-warning'
+    email_configs:
+      - to: 'database-team@admissions.example.com'
+        send_resolved: true
+    slack_configs:
+      - channel: '#database-alerts'
+        send_resolved: true
+        title: '[WARNING] {{ .GroupLabels.alertname }}'
+        title_link: '{{ .CommonAnnotations.dashboard }}'
+        text: >-
+          {{ range .Alerts }}*Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          *Instance:* {{ .Labels.instance }}
+          {{ end }}
+        color: '#FFA500'
+  
+  # Warning Integration team alerts
+  - name: 'integration-warning'
+    email_configs:
+      - to: 'integration-team@admissions.example.com'
+        send_resolved: true
+    slack_configs:
+      - channel: '#integration-alerts'
+        send_resolved: true
+        title: '[WARNING] {{ .GroupLabels.alertname }}'
+        title_link: '{{ .CommonAnnotations.dashboard }}'
+        text: >-
+          {{ range .Alerts }}*Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          *Instance:* {{ .Labels.instance }}
+          {{ end }}
+        color: '#FFA500'
+  
+  # Warning Security team alerts
+  - name: 'security-warning'
+    email_configs:
+      - to: 'security-team@admissions.example.com'
+        send_resolved: true
+    slack_configs:
+      - channel: '#security-alerts'
+        send_resolved: true
+        title: '[WARNING] {{ .GroupLabels.alertname }}'
+        title_link: '{{ .CommonAnnotations.dashboard }}'
+        text: >-
+          {{ range .Alerts }}*Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          *Instance:* {{ .Labels.instance }}
+          {{ end }}
+        color: '#FFA500'
+  
+  # Warning Business team alerts
+  - name: 'business-warning'
+    email_configs:
+      - to: 'business-team@admissions.example.com'
+        send_resolved: true
+    slack_configs:
+      - channel: '#business-alerts'
+        send_resolved: true
+        title: '[WARNING] {{ .GroupLabels.alertname }}'
+        title_link: '{{ .CommonAnnotations.dashboard }}'
+        text: >-
+          {{ range .Alerts }}*Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          *Instance:* {{ .Labels.instance }}
+          {{ end }}
+        color: '#FFA500'
+  
+  # SLA Violation alerts (sent to SLA team and management)
+  - name: 'sla-violations'
+    email_configs:
+      - to: 'sla-team@admissions.example.com, management@admissions.example.com'
+        send_resolved: true
+        subject: '[SLA VIOLATION] {{ .GroupLabels.alertname }}'
+    slack_configs:
+      - channel: '#sla-violations'
+        send_resolved: true
+        title: '[SLA VIOLATION] {{ .GroupLabels.alertname }}'
+        title_link: '{{ .CommonAnnotations.dashboard }}'
+        text: >-
+          {{ range .Alerts }}*Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          *Instance:* {{ .Labels.instance }}
+          *Team:* {{ .Labels.team }}
+          {{ end }}
+        color: '#800080'
+
+# Templates for notifications
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# High availability configuration
+high_availability:
+  description: "Configuration for high availability deployment"
+  cluster:
+    peers:
+      - alertmanager-1:9094
+      - alertmanager-2:9094
+      - alertmanager-3:9094
+    gossip_interval: 200ms
+    push_pull_interval: 1m
+  data_retention: 120h
+
+# Additional documentation sections
+security_considerations:
+  description: "Security measures implemented in the alertmanager configuration"
+  sensitive_data: "Environment variables used for credentials and API keys"
+  access_control: "Network policies restrict access to the alertmanager API"
+  authentication: "Basic auth can be enabled for the web UI in production"
+
+maintenance_procedures:
+  description: "Procedures for maintaining the alertmanager configuration"
+  configuration_updates: "Changes should be version controlled and tested in staging"
+  silence_management: "Temporary silences should be documented with expiration dates"
+  template_updates: "Alert templates should be tested with sample data before deployment"
