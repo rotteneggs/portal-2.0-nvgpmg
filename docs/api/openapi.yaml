@@ -1,0 +1,2757 @@
+openapi: 3.0.3
+info:
+  title: Student Admissions Enrollment Platform API
+  description: API for the Student Admissions Enrollment Platform, providing endpoints for managing the entire student admissions lifecycle.
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: api-support@institution.edu
+    url: https://admissions.institution.edu/api-docs
+  license:
+    name: Proprietary
+    url: https://admissions.institution.edu/terms
+servers:
+  - url: https://api.admissions.institution.edu/api/v1
+    description: Production API Server
+  - url: https://staging-api.admissions.institution.edu/api/v1
+    description: Staging API Server
+  - url: https://dev-api.admissions.institution.edu/api/v1
+    description: Development API Server
+tags:
+  - name: Authentication
+    description: Authentication and user management endpoints
+  - name: Applications
+    description: Application submission and management endpoints
+  - name: Documents
+    description: Document upload and management endpoints
+  - name: Workflows
+    description: Workflow definition and status tracking endpoints
+  - name: Messages
+    description: In-app messaging system endpoints
+  - name: Notifications
+    description: Notification management endpoints
+  - name: Payments
+    description: Payment processing endpoints
+  - name: Financial Aid
+    description: Financial aid application endpoints
+  - name: AI
+    description: AI-powered features and services
+  - name: Admin
+    description: Administrative endpoints (restricted access)
+paths:
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register a new user
+      description: Create a new user account with email and password
+      operationId: registerUser
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+        required: true
+      responses:
+        '201':
+          description: User successfully registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Authenticate a user
+      description: Authenticate a user and generate an access token
+      operationId: loginUser
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful authentication
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      token:
+                        type: string
+                        description: JWT access token
+                        example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      user:
+                        $ref: '#/components/schemas/User'
+                  message:
+                    type: string
+                    example: "Successfully authenticated"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Log out a user
+      description: Log out a user by revoking their token
+      operationId: logoutUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Successfully logged out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  
+  /auth/verify-mfa:
+    post:
+      tags:
+        - Authentication
+      summary: Verify MFA code
+      description: Verify a multi-factor authentication code
+      operationId: verifyMfa
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyMfaRequest'
+        required: true
+      responses:
+        '200':
+          description: MFA verification successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      token:
+                        type: string
+                        description: JWT access token
+                        example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  message:
+                    type: string
+                    example: "MFA verification successful"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  
+  /auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: Get authenticated user info
+      description: Get the currently authenticated user's information
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User information retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/User'
+                  message:
+                    type: string
+                    example: "User retrieved successfully"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  
+  /applications:
+    get:
+      tags:
+        - Applications
+      summary: List applications
+      description: Get a paginated list of applications for the authenticated user
+      operationId: getApplications
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/per_page'
+        - name: application_type
+          in: query
+          description: Filter by application type
+          schema:
+            type: string
+            enum: [undergraduate, graduate, transfer]
+        - name: status
+          in: query
+          description: Filter by application status
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Applications retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Application'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    
+    post:
+      tags:
+        - Applications
+      summary: Create application
+      description: Create a new application
+      operationId: createApplication
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplicationCreateRequest'
+        required: true
+      responses:
+        '201':
+          description: Application created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Application'
+                  message:
+                    type: string
+                    example: "Application created successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  
+  /applications/{id}:
+    get:
+      tags:
+        - Applications
+      summary: Get application
+      description: Get a specific application by ID
+      operationId: getApplication
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Application ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: include
+          in: query
+          description: Include related resources
+          schema:
+            type: string
+            example: "documents,statuses"
+      responses:
+        '200':
+          description: Application retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Application'
+                  message:
+                    type: string
+                    example: "Application retrieved successfully"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    
+    put:
+      tags:
+        - Applications
+      summary: Update application
+      description: Update an existing application
+      operationId: updateApplication
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Application ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplicationUpdateRequest'
+        required: true
+      responses:
+        '200':
+          description: Application updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Application'
+                  message:
+                    type: string
+                    example: "Application updated successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  
+  /applications/{id}/submit:
+    post:
+      tags:
+        - Applications
+      summary: Submit application
+      description: Submit an application for review
+      operationId: submitApplication
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Application ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplicationSubmitRequest'
+      responses:
+        '200':
+          description: Application submitted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Application'
+                  message:
+                    type: string
+                    example: "Application submitted successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  
+  /applications/{id}/required-documents:
+    get:
+      tags:
+        - Applications
+        - Documents
+      summary: Get required documents
+      description: Get a list of required documents for an application
+      operationId: getRequiredDocuments
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Application ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Required documents retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RequiredDocument'
+                  message:
+                    type: string
+                    example: "Required documents retrieved successfully"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  
+  /applications/{id}/timeline:
+    get:
+      tags:
+        - Applications
+      summary: Get application timeline
+      description: Get the timeline of status changes for an application
+      operationId: getApplicationTimeline
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Application ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Application timeline retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApplicationStatus'
+                  message:
+                    type: string
+                    example: "Application timeline retrieved successfully"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  
+  /documents:
+    get:
+      tags:
+        - Documents
+      summary: List documents
+      description: Get a paginated list of documents for the authenticated user or by application ID
+      operationId: getDocuments
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/per_page'
+        - name: application_id
+          in: query
+          description: Filter by application ID
+          schema:
+            type: integer
+            format: int64
+        - name: document_type
+          in: query
+          description: Filter by document type
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Documents retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Document'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    
+    post:
+      tags:
+        - Documents
+      summary: Upload document
+      description: Upload a new document
+      operationId: uploadDocument
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DocumentUploadRequest'
+        required: true
+      responses:
+        '201':
+          description: Document uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Document'
+                  message:
+                    type: string
+                    example: "Document uploaded successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  
+  /documents/{id}:
+    get:
+      tags:
+        - Documents
+      summary: Get document
+      description: Get a specific document by ID
+      operationId: getDocument
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Document ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: include
+          in: query
+          description: Include related resources
+          schema:
+            type: string
+            example: "verification"
+      responses:
+        '200':
+          description: Document retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Document'
+                  message:
+                    type: string
+                    example: "Document retrieved successfully"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    
+    delete:
+      tags:
+        - Documents
+      summary: Delete document
+      description: Delete a document by ID
+      operationId: deleteDocument
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Document ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Document deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  
+  /documents/{id}/download:
+    get:
+      tags:
+        - Documents
+      summary: Download document
+      description: Get a temporary download URL for a document
+      operationId: downloadDocument
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Document ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: expiration
+          in: query
+          description: URL expiration time in minutes
+          schema:
+            type: integer
+            default: 30
+            minimum: 5
+            maximum: 60
+      responses:
+        '200':
+          description: Download URL generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      download_url:
+                        type: string
+                        description: Temporary URL for downloading the document
+                        example: "https://storage.example.com/documents/abc123?signature=xyz789&expires=1234567890"
+                      expires_at:
+                        type: string
+                        format: date-time
+                        description: Expiration time of the download URL
+                  message:
+                    type: string
+                    example: "Download URL generated successfully"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  
+  /documents/types:
+    get:
+      tags:
+        - Documents
+      summary: Get document types
+      description: Get a list of available document types and their requirements
+      operationId: getDocumentTypes
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: application_type
+          in: query
+          description: Filter by application type
+          schema:
+            type: string
+            enum: [undergraduate, graduate, transfer]
+      responses:
+        '200':
+          description: Document types retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DocumentType'
+                  message:
+                    type: string
+                    example: "Document types retrieved successfully"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  
+  /workflows/active:
+    get:
+      tags:
+        - Workflows
+      summary: Get active workflow
+      description: Get the active workflow for a specific application type
+      operationId: getActiveWorkflow
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: application_type
+          in: query
+          description: Application type
+          required: true
+          schema:
+            type: string
+            enum: [undergraduate, graduate, transfer]
+      responses:
+        '200':
+          description: Active workflow retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Workflow'
+                  message:
+                    type: string
+                    example: "Active workflow retrieved successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  
+  /workflows/{workflowId}/stages:
+    get:
+      tags:
+        - Workflows
+      summary: Get workflow stages
+      description: Get all stages for a specific workflow
+      operationId: getWorkflowStages
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workflowId
+          in: path
+          description: Workflow ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Workflow stages retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WorkflowStage'
+                  message:
+                    type: string
+                    example: "Workflow stages retrieved successfully"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  
+  /applications/{applicationId}/status:
+    get:
+      tags:
+        - Applications
+        - Workflows
+      summary: Get application status
+      description: Get the current status and possible transitions for an application
+      operationId: getApplicationStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: applicationId
+          in: path
+          description: Application ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Application status retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      current_status:
+                        $ref: '#/components/schemas/ApplicationStatus'
+                      possible_transitions:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/WorkflowTransition'
+                      timeline:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ApplicationStatus'
+                  message:
+                    type: string
+                    example: "Application status retrieved successfully"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  
+  /messages:
+    get:
+      tags:
+        - Messages
+      summary: List messages
+      description: Get a paginated list of messages for the authenticated user
+      operationId: getMessages
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/per_page'
+        - name: application_id
+          in: query
+          description: Filter by application ID
+          schema:
+            type: integer
+            format: int64
+        - name: unread_only
+          in: query
+          description: Filter to show only unread messages
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Messages retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Message'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    
+    post:
+      tags:
+        - Messages
+      summary: Send message
+      description: Create a new message
+      operationId: sendMessage
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MessageCreateRequest'
+        required: true
+      responses:
+        '201':
+          description: Message sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Message'
+                  message:
+                    type: string
+                    example: "Message sent successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  
+  /messages/{id}:
+    get:
+      tags:
+        - Messages
+      summary: Get message
+      description: Get a specific message by ID
+      operationId: getMessage
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Message ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Message retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Message'
+                  message:
+                    type: string
+                    example: "Message retrieved successfully"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  
+  /messages/{id}/reply:
+    post:
+      tags:
+        - Messages
+      summary: Reply to message
+      description: Reply to an existing message
+      operationId: replyToMessage
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Message ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MessageReplyRequest'
+        required: true
+      responses:
+        '201':
+          description: Reply sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Message'
+                  message:
+                    type: string
+                    example: "Reply sent successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  
+  /payments:
+    get:
+      tags:
+        - Payments
+      summary: List payments
+      description: Get a paginated list of payments for the authenticated user
+      operationId: getPayments
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/per_page'
+        - name: payment_type
+          in: query
+          description: Filter by payment type
+          schema:
+            type: string
+            enum: [application_fee, enrollment_deposit, tuition]
+        - name: status
+          in: query
+          description: Filter by payment status
+          schema:
+            type: string
+            enum: [pending, completed, failed, refunded]
+      responses:
+        '200':
+          description: Payments retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Payment'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  
+  /payments/initialize:
+    post:
+      tags:
+        - Payments
+      summary: Initialize payment
+      description: Initialize a payment for processing
+      operationId: initializePayment
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentInitializeRequest'
+        required: true
+      responses:
+        '200':
+          description: Payment initialized successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      payment_id:
+                        type: integer
+                        format: int64
+                        description: ID of the initialized payment
+                      client_secret:
+                        type: string
+                        description: Client secret for payment processing
+                      payment_intent_id:
+                        type: string
+                        description: Payment intent ID from payment processor
+                  message:
+                    type: string
+                    example: "Payment initialized successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  
+  /payments/{id}/process:
+    post:
+      tags:
+        - Payments
+      summary: Process payment
+      description: Process a payment with the payment gateway
+      operationId: processPayment
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Payment ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentProcessRequest'
+        required: true
+      responses:
+        '200':
+          description: Payment processed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Payment'
+                  message:
+                    type: string
+                    example: "Payment processed successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  
+  /financial-aid:
+    get:
+      tags:
+        - Financial Aid
+      summary: List financial aid applications
+      description: Get a list of financial aid applications for the authenticated user
+      operationId: getFinancialAidApplications
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/per_page'
+        - name: application_id
+          in: query
+          description: Filter by application ID
+          schema:
+            type: integer
+            format: int64
+        - name: aid_type
+          in: query
+          description: Filter by aid type
+          schema:
+            type: string
+            enum: [need_based, merit_based, scholarship]
+      responses:
+        '200':
+          description: Financial aid applications retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FinancialAidApplication'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    
+    post:
+      tags:
+        - Financial Aid
+      summary: Apply for financial aid
+      description: Create a new financial aid application
+      operationId: applyForFinancialAid
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinancialAidCreateRequest'
+        required: true
+      responses:
+        '201':
+          description: Financial aid application created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/FinancialAidApplication'
+                  message:
+                    type: string
+                    example: "Financial aid application created successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  
+  /financial-aid/{id}/documents:
+    get:
+      tags:
+        - Financial Aid
+        - Documents
+      summary: List financial aid documents
+      description: Get a list of documents for a financial aid application
+      operationId: getFinancialAidDocuments
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Financial aid application ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Financial aid documents retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Document'
+                  message:
+                    type: string
+                    example: "Financial aid documents retrieved successfully"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    
+    post:
+      tags:
+        - Financial Aid
+        - Documents
+      summary: Upload financial aid document
+      description: Upload a document for a financial aid application
+      operationId: uploadFinancialAidDocument
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Financial aid application ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DocumentUploadRequest'
+        required: true
+      responses:
+        '201':
+          description: Document uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Document'
+                  message:
+                    type: string
+                    example: "Document uploaded successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  
+  /ai/chatbot:
+    post:
+      tags:
+        - AI
+      summary: Get chatbot response
+      description: Get a response from the AI chatbot based on user message and context
+      operationId: getChatbotResponse
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatbotRequest'
+        required: true
+      responses:
+        '200':
+          description: Chatbot response generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        description: Response from the chatbot
+                      context:
+                        type: object
+                        description: Context information for future interactions
+                      suggested_actions:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            label:
+                              type: string
+                              description: Label for the suggested action
+                            action:
+                              type: string
+                              description: Type of action
+                            data:
+                              type: object
+                              description: Additional data for the action
+                  message:
+                    type: string
+                    example: "Response generated successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  
+  /admin/applications:
+    get:
+      tags:
+        - Admin
+        - Applications
+      summary: Admin - List applications
+      description: Get a paginated list of all applications (admin only)
+      operationId: adminGetApplications
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/per_page'
+        - name: application_type
+          in: query
+          description: Filter by application type
+          schema:
+            type: string
+            enum: [undergraduate, graduate, transfer]
+        - name: status
+          in: query
+          description: Filter by application status
+          schema:
+            type: string
+        - name: date_range
+          in: query
+          description: Filter by date range (format: YYYY-MM-DD,YYYY-MM-DD)
+          schema:
+            type: string
+            example: "2023-01-01,2023-12-31"
+      responses:
+        '200':
+          description: Applications retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Application'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  
+  /admin/users:
+    get:
+      tags:
+        - Admin
+      summary: Admin - List users
+      description: Get a paginated list of users (admin only)
+      operationId: adminGetUsers
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/per_page'
+        - name: role
+          in: query
+          description: Filter by role
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Filter by user status
+          schema:
+            type: string
+            enum: [active, inactive]
+      responses:
+        '200':
+          description: Users retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  
+  /admin/workflows:
+    get:
+      tags:
+        - Admin
+        - Workflows
+      summary: Admin - List workflows
+      description: Get a paginated list of workflows with optional filtering (admin only)
+      operationId: adminGetWorkflows
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/per_page'
+        - name: application_type
+          in: query
+          description: Filter by application type
+          schema:
+            type: string
+            enum: [undergraduate, graduate, transfer]
+        - name: is_active
+          in: query
+          description: Filter by active status
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Workflows retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Workflow'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+components:
+  schemas:
+    # User schemas
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier for the user
+        email:
+          type: string
+          format: email
+          description: User's email address
+        email_verified_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when email was verified
+        is_active:
+          type: boolean
+          description: Whether the user account is active
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the user was created
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when the user was last updated
+        last_login_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp of last login
+        profile:
+          $ref: '#/components/schemas/UserProfile'
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+          description: User's assigned roles
+    
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier for the profile
+        user_id:
+          type: integer
+          format: int64
+          description: ID of the associated user
+        first_name:
+          type: string
+          description: User's first name
+        last_name:
+          type: string
+          description: User's last name
+        date_of_birth:
+          type: string
+          format: date
+          nullable: true
+          description: User's date of birth
+        phone_number:
+          type: string
+          nullable: true
+          description: User's phone number
+        address_line1:
+          type: string
+          nullable: true
+          description: First line of user's address
+        address_line2:
+          type: string
+          nullable: true
+          description: Second line of user's address
+        city:
+          type: string
+          nullable: true
+          description: User's city
+        state:
+          type: string
+          nullable: true
+          description: User's state or province
+        postal_code:
+          type: string
+          nullable: true
+          description: User's postal or ZIP code
+        country:
+          type: string
+          nullable: true
+          description: User's country
+        notification_preferences:
+          type: object
+          nullable: true
+          description: User's notification preferences
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the profile was created
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when the profile was last updated
+    
+    Role:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier for the role
+        name:
+          type: string
+          description: Name of the role
+        description:
+          type: string
+          nullable: true
+          description: Description of the role
+        is_system_role:
+          type: boolean
+          description: Whether this is a system-defined role
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the role was created
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when the role was last updated
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Permission'
+          description: Permissions assigned to this role
+    
+    Permission:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier for the permission
+        name:
+          type: string
+          description: Name of the permission
+        description:
+          type: string
+          nullable: true
+          description: Description of the permission
+        resource:
+          type: string
+          description: Resource this permission applies to
+        action:
+          type: string
+          description: Action this permission allows
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the permission was created
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when the permission was last updated
+    
+    # Application schemas
+    Application:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier for the application
+        user_id:
+          type: integer
+          format: int64
+          description: ID of the user who submitted the application
+        application_type:
+          type: string
+          description: Type of application (undergraduate, graduate, transfer)
+        academic_term:
+          type: string
+          description: Academic term for the application (Fall, Spring, Summer)
+        academic_year:
+          type: string
+          description: Academic year for the application (e.g., 2023-2024)
+        current_status_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: ID of the current application status
+        application_data:
+          type: object
+          description: JSON object containing application form data
+        is_submitted:
+          type: boolean
+          description: Whether the application has been submitted
+        submitted_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the application was submitted
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the application was created
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when the application was last updated
+        user:
+          $ref: '#/components/schemas/User'
+        current_status:
+          $ref: '#/components/schemas/ApplicationStatus'
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/Document'
+          description: Documents associated with the application
+        statuses:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApplicationStatus'
+          description: History of application statuses
+    
+    ApplicationStatus:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier for the status
+        application_id:
+          type: integer
+          format: int64
+          description: ID of the associated application
+        workflow_stage_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: ID of the associated workflow stage
+        status:
+          type: string
+          description: Status label
+        notes:
+          type: string
+          nullable: true
+          description: Optional notes for this status
+        created_by_user_id:
+          type: integer
+          format: int64
+          description: ID of the user who created this status
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the status was created
+        workflow_stage:
+          $ref: '#/components/schemas/WorkflowStage'
+        created_by_user:
+          $ref: '#/components/schemas/User'
+    
+    # Document schemas
+    Document:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier for the document
+        user_id:
+          type: integer
+          format: int64
+          description: ID of the user who uploaded the document
+        application_id:
+          type: integer
+          format: int64
+          description: ID of the associated application
+        document_type:
+          type: string
+          description: Type of document (transcript, id, recommendation, etc.)
+        file_name:
+          type: string
+          description: Original filename of the document
+        file_path:
+          type: string
+          description: Storage path of the document
+        mime_type:
+          type: string
+          description: MIME type of the document
+        file_size:
+          type: integer
+          format: int64
+          description: Size of the document in bytes
+        is_verified:
+          type: boolean
+          description: Whether the document has been verified
+        verified_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the document was verified
+        verified_by_user_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: ID of the user who verified the document
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the document was created
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when the document was last updated
+        verification:
+          $ref: '#/components/schemas/DocumentVerification'
+        download_url:
+          type: string
+          nullable: true
+          description: Temporary URL for downloading the document
+    
+    DocumentVerification:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier for the verification
+        document_id:
+          type: integer
+          format: int64
+          description: ID of the associated document
+        verification_method:
+          type: string
+          description: Method used for verification (manual, ai, external)
+        verification_status:
+          type: string
+          description: Status of the verification
+        verification_data:
+          type: object
+          nullable: true
+          description: Additional data from the verification process
+        confidence_score:
+          type: number
+          format: float
+          nullable: true
+          description: Confidence score for AI verification
+        notes:
+          type: string
+          nullable: true
+          description: Optional notes about the verification
+        verified_by_user_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: ID of the user who performed the verification
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the verification was created
+        verified_by_user:
+          $ref: '#/components/schemas/User'
+    
+    DocumentType:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the document type
+        name:
+          type: string
+          description: Display name of the document type
+        description:
+          type: string
+          description: Description of the document type
+        required:
+          type: boolean
+          description: Whether this document type is required
+        allowed_mime_types:
+          type: array
+          items:
+            type: string
+          description: MIME types allowed for this document type
+        max_file_size:
+          type: integer
+          description: Maximum file size in bytes
+        application_types:
+          type: array
+          items:
+            type: string
+          description: Application types this document is used for
+        verification_required:
+          type: boolean
+          description: Whether this document requires verification
+    
+    RequiredDocument:
+      type: object
+      properties:
+        document_type:
+          type: string
+          description: Type of document required
+        name:
+          type: string
+          description: Display name of the document
+        description:
+          type: string
+          description: Description of the document requirement
+        required:
+          type: boolean
+          description: Whether this document is required
+        status:
+          type: string
+          enum: [pending, uploaded, verified, rejected]
+          description: Current status of this document
+        uploaded_document:
+          $ref: '#/components/schemas/Document'
+          nullable: true
+          description: The document that has been uploaded, if any
+    
+    # Workflow schemas
+    Workflow:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier for the workflow
+        name:
+          type: string
+          description: Name of the workflow
+        description:
+          type: string
+          nullable: true
+          description: Description of the workflow
+        application_type:
+          type: string
+          description: Application type this workflow applies to
+        is_active:
+          type: boolean
+          description: Whether this workflow is currently active
+        created_by_user_id:
+          type: integer
+          format: int64
+          description: ID of the user who created this workflow
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the workflow was created
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when the workflow was last updated
+        stages:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowStage'
+          description: Stages in this workflow
+        created_by_user:
+          $ref: '#/components/schemas/User'
+    
+    WorkflowStage:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier for the workflow stage
+        workflow_id:
+          type: integer
+          format: int64
+          description: ID of the associated workflow
+        name:
+          type: string
+          description: Name of the stage
+        description:
+          type: string
+          nullable: true
+          description: Description of the stage
+        sequence:
+          type: integer
+          description: Order of this stage in the workflow
+        required_documents:
+          type: array
+          items:
+            type: string
+          description: Document types required for this stage
+        required_actions:
+          type: array
+          items:
+            type: string
+          description: Actions required for this stage
+        notification_triggers:
+          type: object
+          nullable: true
+          description: Notification configurations for this stage
+        assigned_role_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: ID of the role assigned to this stage
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the stage was created
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when the stage was last updated
+        transitions:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowTransition'
+          description: Transitions from this stage
+        assigned_role:
+          $ref: '#/components/schemas/Role'
+    
+    WorkflowTransition:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier for the transition
+        source_stage_id:
+          type: integer
+          format: int64
+          description: ID of the source stage
+        target_stage_id:
+          type: integer
+          format: int64
+          description: ID of the target stage
+        name:
+          type: string
+          description: Name of the transition
+        description:
+          type: string
+          nullable: true
+          description: Description of the transition
+        transition_conditions:
+          type: object
+          nullable: true
+          description: Conditions required for this transition
+        required_permissions:
+          type: array
+          items:
+            type: string
+          description: Permissions required to execute this transition
+        is_automatic:
+          type: boolean
+          description: Whether this transition happens automatically when conditions are met
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the transition was created
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when the transition was last updated
+        source_stage:
+          $ref: '#/components/schemas/WorkflowStage'
+        target_stage:
+          $ref: '#/components/schemas/WorkflowStage'
+    
+    # Message schemas
+    Message:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier for the message
+        sender_user_id:
+          type: integer
+          format: int64
+          description: ID of the user who sent the message
+        recipient_user_id:
+          type: integer
+          format: int64
+          description: ID of the user who received the message
+        application_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: ID of the associated application (if any)
+        subject:
+          type: string
+          description: Subject of the message
+        message_body:
+          type: string
+          description: Body content of the message
+        is_read:
+          type: boolean
+          description: Whether the message has been read by the recipient
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the message was read
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the message was created
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when the message was last updated
+        sender:
+          $ref: '#/components/schemas/User'
+        recipient:
+          $ref: '#/components/schemas/User'
+        application:
+          $ref: '#/components/schemas/Application'
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessageAttachment'
+          description: Attachments to the message
+    
+    MessageAttachment:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier for the attachment
+        message_id:
+          type: integer
+          format: int64
+          description: ID of the associated message
+        file_name:
+          type: string
+          description: Original filename of the attachment
+        file_path:
+          type: string
+          description: Storage path of the attachment
+        mime_type:
+          type: string
+          description: MIME type of the attachment
+        file_size:
+          type: integer
+          format: int64
+          description: Size of the attachment in bytes
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the attachment was created
+        download_url:
+          type: string
+          nullable: true
+          description: Temporary URL for downloading the attachment
+    
+    # Payment schemas
+    Payment:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier for the payment
+        user_id:
+          type: integer
+          format: int64
+          description: ID of the user making the payment
+        application_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: ID of the associated application (if any)
+        payment_type:
+          type: string
+          description: Type of payment (application_fee, enrollment_deposit, etc.)
+        amount:
+          type: number
+          format: decimal
+          description: Payment amount
+        currency:
+          type: string
+          description: Currency code (e.g., USD)
+        payment_method:
+          type: string
+          description: Payment method used (credit_card, bank_transfer, etc.)
+        transaction_id:
+          type: string
+          nullable: true
+          description: External transaction ID from payment processor
+        status:
+          type: string
+          description: Payment status (pending, completed, failed, refunded)
+        payment_data:
+          type: object
+          nullable: true
+          description: Additional payment data from the payment processor
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the payment was completed
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the payment was created
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when the payment was last updated
+        user:
+          $ref: '#/components/schemas/User'
+        application:
+          $ref: '#/components/schemas/Application'
+    
+    # Financial Aid schemas
+    FinancialAidApplication:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier for the financial aid application
+        user_id:
+          type: integer
+          format: int64
+          description: ID of the user who submitted the application
+        application_id:
+          type: integer
+          format: int64
+          description: ID of the associated admissions application
+        aid_type:
+          type: string
+          description: Type of financial aid (need_based, merit_based, scholarship)
+        financial_data:
+          type: object
+          description: JSON object containing financial information
+        status:
+          type: string
+          description: Status of the financial aid application
+        submitted_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the application was submitted
+        reviewed_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the application was reviewed
+        reviewed_by_user_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: ID of the user who reviewed the application
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the application was created
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when the application was last updated
+        user:
+          $ref: '#/components/schemas/User'
+        application:
+          $ref: '#/components/schemas/Application'
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/Document'
+          description: Documents associated with the financial aid application
+        reviewed_by_user:
+          $ref: '#/components/schemas/User'
+    
+    # Request/Response schemas
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - password_confirmation
+        - first_name
+        - last_name
+      properties:
+        email:
+          type: string
+          format: email
+          description: User's email address
+        password:
+          type: string
+          format: password
+          minLength: 12
+          description: User's password (min 12 characters)
+        password_confirmation:
+          type: string
+          format: password
+          description: Password confirmation
+        first_name:
+          type: string
+          description: User's first name
+        last_name:
+          type: string
+          description: User's last name
+        phone_number:
+          type: string
+          description: User's phone number
+    
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: User's email address
+        password:
+          type: string
+          format: password
+          description: User's password
+        remember_me:
+          type: boolean
+          description: Whether to remember the user's session
+    
+    VerifyMfaRequest:
+      type: object
+      required:
+        - mfa_code
+        - mfa_token
+      properties:
+        mfa_code:
+          type: string
+          description: MFA verification code
+        mfa_token:
+          type: string
+          description: Temporary token received after successful login
+
+    ApplicationCreateRequest:
+      type: object
+      required:
+        - application_type
+        - academic_term
+        - academic_year
+      properties:
+        application_type:
+          type: string
+          enum: [undergraduate, graduate, transfer]
+          description: Type of application
+        academic_term:
+          type: string
+          enum: [Fall, Spring, Summer]
+          description: Academic term
+        academic_year:
+          type: string
+          description: Academic year (e.g., 2023-2024)
+        application_data:
+          type: object
+          description: Initial application data (optional)
+    
+    ApplicationUpdateRequest:
+      type: object
+      properties:
+        application_data:
+          type: object
+          description: Updated application data
+    
+    ApplicationSubmitRequest:
+      type: object
+      properties:
+        confirmation:
+          type: boolean
+          description: User confirmation of submission
+          default: true
+    
+    DocumentUploadRequest:
+      type: object
+      required:
+        - document_type
+        - file
+      properties:
+        document_type:
+          type: string
+          description: Type of document being uploaded
+        application_id:
+          type: integer
+          format: int64
+          description: ID of the associated application
+        file:
+          type: string
+          format: binary
+          description: The document file to upload
+    
+    MessageCreateRequest:
+      type: object
+      required:
+        - recipient_user_id
+        - subject
+        - message_body
+      properties:
+        recipient_user_id:
+          type: integer
+          format: int64
+          description: ID of the recipient user
+        application_id:
+          type: integer
+          format: int64
+          description: ID of the associated application (optional)
+        subject:
+          type: string
+          description: Subject of the message
+        message_body:
+          type: string
+          description: Body content of the message
+        attachments:
+          type: array
+          items:
+            type: string
+            format: binary
+          description: File attachments (optional)
+    
+    MessageReplyRequest:
+      type: object
+      required:
+        - message_body
+      properties:
+        message_body:
+          type: string
+          description: Body content of the reply
+        attachments:
+          type: array
+          items:
+            type: string
+            format: binary
+          description: File attachments (optional)
+    
+    PaymentInitializeRequest:
+      type: object
+      required:
+        - payment_type
+        - amount
+      properties:
+        payment_type:
+          type: string
+          enum: [application_fee, enrollment_deposit, tuition]
+          description: Type of payment
+        application_id:
+          type: integer
+          format: int64
+          description: ID of the associated application (if applicable)
+        amount:
+          type: number
+          format: decimal
+          description: Payment amount
+        currency:
+          type: string
+          default: USD
+          description: Currency code
+        payment_method:
+          type: string
+          enum: [credit_card, bank_transfer, paypal]
+          description: Payment method
+    
+    PaymentProcessRequest:
+      type: object
+      required:
+        - payment_method_id
+      properties:
+        payment_method_id:
+          type: string
+          description: Payment method ID from payment processor
+        save_payment_method:
+          type: boolean
+          default: false
+          description: Whether to save the payment method for future use
+    
+    FinancialAidCreateRequest:
+      type: object
+      required:
+        - application_id
+        - aid_type
+        - financial_data
+      properties:
+        application_id:
+          type: integer
+          format: int64
+          description: ID of the associated application
+        aid_type:
+          type: string
+          enum: [need_based, merit_based, scholarship]
+          description: Type of financial aid
+        financial_data:
+          type: object
+          description: Financial information for the application
+    
+    ChatbotRequest:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: User message to the chatbot
+        context:
+          type: object
+          description: Conversation context from previous interactions
+    
+    # Utility schemas
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          nullable: true
+          description: Additional error details
+    
+    ValidationError:
+      type: object
+      properties:
+        field:
+          type: array
+          items:
+            type: string
+          description: Validation error messages for this field
+    
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          default: true
+          description: Indicates successful operation
+        data:
+          type: object
+          nullable: true
+          description: Response data
+        message:
+          type: string
+          nullable: true
+          description: Success message
+    
+    PaginationMeta:
+      type: object
+      properties:
+        pagination:
+          type: object
+          properties:
+            total:
+              type: integer
+              description: Total number of items
+            per_page:
+              type: integer
+              description: Number of items per page
+            current_page:
+              type: integer
+              description: Current page number
+            last_page:
+              type: integer
+              description: Last page number
+            from:
+              type: integer
+              description: Index of first item on current page
+            to:
+              type: integer
+              description: Index of last item on current page
+
+  parameters:
+    page:
+      name: page
+      in: query
+      description: Page number for pagination
+      schema:
+        type: integer
+        default: 1
+        minimum: 1
+    
+    per_page:
+      name: per_page
+      in: query
+      description: Number of items per page
+      schema:
+        type: integer
+        default: 15
+        minimum: 1
+        maximum: 100
+  
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              error:
+                $ref: '#/components/schemas/Error'
+    
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              error:
+                $ref: '#/components/schemas/Error'
+    
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              error:
+                $ref: '#/components/schemas/Error'
+    
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              error:
+                $ref: '#/components/schemas/Error'
+    
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              error:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    example: "VALIDATION_ERROR"
+                  message:
+                    type: string
+                    example: "The given data was invalid."
+                  details:
+                    type: object
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
+    
+    TooManyRequests:
+      description: Too many requests
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              error:
+                $ref: '#/components/schemas/Error'
+    
+    ServerError:
+      description: Server error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              error:
+                $ref: '#/components/schemas/Error'
+  
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from the /auth/login endpoint
+    
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for system-to-system integration
+
+security:
+  - bearerAuth: []
