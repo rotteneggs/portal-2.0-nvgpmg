@@ -1,0 +1,482 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Carbon\Carbon;
+
+class Payment extends Model
+{
+    use HasFactory;
+
+    // Payment types
+    const TYPE_APPLICATION_FEE = 'APPLICATION_FEE';
+    const TYPE_ENROLLMENT_DEPOSIT = 'ENROLLMENT_DEPOSIT';
+    const TYPE_TUITION = 'TUITION';
+    const TYPE_OTHER = 'OTHER';
+
+    // Payment methods
+    const METHOD_CREDIT_CARD = 'CREDIT_CARD';
+    const METHOD_DEBIT_CARD = 'DEBIT_CARD';
+    const METHOD_BANK_TRANSFER = 'BANK_TRANSFER';
+    const METHOD_WIRE_TRANSFER = 'WIRE_TRANSFER';
+    const METHOD_INTERNATIONAL_PAYMENT = 'INTERNATIONAL_PAYMENT';
+
+    // Payment statuses
+    const STATUS_PENDING = 'PENDING';
+    const STATUS_COMPLETED = 'COMPLETED';
+    const STATUS_FAILED = 'FAILED';
+    const STATUS_REFUNDED = 'REFUNDED';
+
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array<string>
+     */
+    protected $fillable = [
+        'user_id',
+        'application_id',
+        'payment_type',
+        'amount',
+        'currency',
+        'payment_method',
+        'transaction_id',
+        'status',
+        'payment_data',
+        'paid_at',
+    ];
+
+    /**
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'amount' => 'decimal:2',
+        'payment_data' => 'array',
+        'paid_at' => 'datetime',
+    ];
+
+    /**
+     * Get the payment types.
+     *
+     * @return array
+     */
+    public static function getPaymentTypes(): array
+    {
+        return [
+            self::TYPE_APPLICATION_FEE,
+            self::TYPE_ENROLLMENT_DEPOSIT,
+            self::TYPE_TUITION,
+            self::TYPE_OTHER,
+        ];
+    }
+
+    /**
+     * Get the payment methods.
+     *
+     * @return array
+     */
+    public static function getPaymentMethods(): array
+    {
+        return [
+            self::METHOD_CREDIT_CARD,
+            self::METHOD_DEBIT_CARD,
+            self::METHOD_BANK_TRANSFER,
+            self::METHOD_WIRE_TRANSFER,
+            self::METHOD_INTERNATIONAL_PAYMENT,
+        ];
+    }
+
+    /**
+     * Get the payment statuses.
+     *
+     * @return array
+     */
+    public static function getPaymentStatuses(): array
+    {
+        return [
+            self::STATUS_PENDING,
+            self::STATUS_COMPLETED,
+            self::STATUS_FAILED,
+            self::STATUS_REFUNDED,
+        ];
+    }
+
+    /**
+     * Get the user that made the payment.
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Get the application associated with the payment.
+     */
+    public function application(): BelongsTo
+    {
+        return $this->belongsTo(Application::class);
+    }
+
+    /**
+     * Scope a query to only include completed payments.
+     */
+    public function scopeCompleted($query)
+    {
+        return $query->where('status', self::STATUS_COMPLETED);
+    }
+
+    /**
+     * Scope a query to only include pending payments.
+     */
+    public function scopePending($query)
+    {
+        return $query->where('status', self::STATUS_PENDING);
+    }
+
+    /**
+     * Scope a query to only include failed payments.
+     */
+    public function scopeFailed($query)
+    {
+        return $query->where('status', self::STATUS_FAILED);
+    }
+
+    /**
+     * Scope a query to only include refunded payments.
+     */
+    public function scopeRefunded($query)
+    {
+        return $query->where('status', self::STATUS_REFUNDED);
+    }
+
+    /**
+     * Scope a query to only include payments for a specific payment type.
+     */
+    public function scopeOfType($query, string $type)
+    {
+        return $query->where('payment_type', $type);
+    }
+
+    /**
+     * Scope a query to only include payments for a specific application.
+     */
+    public function scopeForApplication($query, int $applicationId)
+    {
+        return $query->where('application_id', $applicationId);
+    }
+
+    /**
+     * Scope a query to only include payments for a specific user.
+     */
+    public function scopeForUser($query, int $userId)
+    {
+        return $query->where('user_id', $userId);
+    }
+
+    /**
+     * Scope a query to only include payments by a specific method.
+     */
+    public function scopeByMethod($query, string $method)
+    {
+        return $query->where('payment_method', $method);
+    }
+
+    /**
+     * Check if the payment is completed.
+     *
+     * @return bool
+     */
+    public function isCompleted(): bool
+    {
+        return $this->status === self::STATUS_COMPLETED;
+    }
+
+    /**
+     * Check if the payment is pending.
+     *
+     * @return bool
+     */
+    public function isPending(): bool
+    {
+        return $this->status === self::STATUS_PENDING;
+    }
+
+    /**
+     * Check if the payment has failed.
+     *
+     * @return bool
+     */
+    public function hasFailed(): bool
+    {
+        return $this->status === self::STATUS_FAILED;
+    }
+
+    /**
+     * Check if the payment has been refunded.
+     *
+     * @return bool
+     */
+    public function isRefunded(): bool
+    {
+        return $this->status === self::STATUS_REFUNDED;
+    }
+
+    /**
+     * Complete a pending payment.
+     *
+     * @param string|null $transactionId
+     * @param array|null $processorResponse
+     * @return bool
+     */
+    public function markAsCompleted(?string $transactionId = null, ?array $processorResponse = null): bool
+    {
+        if ($this->isPending()) {
+            $this->status = self::STATUS_COMPLETED;
+            $this->paid_at = Carbon::now();
+            
+            if ($transactionId) {
+                $this->transaction_id = $transactionId;
+            }
+            
+            if ($processorResponse) {
+                $paymentData = $this->payment_data ?? [];
+                $paymentData['processor_response'] = $processorResponse;
+                $this->payment_data = $paymentData;
+            }
+            
+            return $this->save();
+        }
+        
+        return false;
+    }
+
+    /**
+     * Mark a payment as failed.
+     *
+     * @param array $errorData
+     * @return bool
+     */
+    public function markAsFailed(array $errorData = []): bool
+    {
+        if ($this->isPending()) {
+            $this->status = self::STATUS_FAILED;
+            
+            if (!empty($errorData)) {
+                $paymentData = $this->payment_data ?? [];
+                $paymentData['error'] = $errorData;
+                $this->payment_data = $paymentData;
+            }
+            
+            return $this->save();
+        }
+        
+        return false;
+    }
+
+    /**
+     * Refund a completed payment.
+     *
+     * @param int $refundByUserId
+     * @param string $reason
+     * @param string|null $refundTransactionId
+     * @return bool
+     */
+    public function refund(int $refundByUserId, string $reason, ?string $refundTransactionId = null): bool
+    {
+        if ($this->isCompleted()) {
+            $this->status = self::STATUS_REFUNDED;
+            
+            $paymentData = $this->payment_data ?? [];
+            $paymentData['original_transaction_id'] = $this->transaction_id;
+            $paymentData['refund_reason'] = $reason;
+            $paymentData['refund_date'] = Carbon::now()->toIso8601String();
+            $paymentData['refund_by_user_id'] = $refundByUserId;
+            
+            if ($refundTransactionId) {
+                $this->transaction_id = $refundTransactionId;
+            }
+            
+            $this->payment_data = $paymentData;
+            
+            return $this->save();
+        }
+        
+        return false;
+    }
+
+    /**
+     * Get formatted amount with currency.
+     *
+     * @return string
+     */
+    public function getFormattedAmountAttribute(): string
+    {
+        return $this->currency . ' ' . number_format($this->amount, 2);
+    }
+
+    /**
+     * Get the payment method description.
+     *
+     * @return string
+     */
+    public function getPaymentMethodDescriptionAttribute(): string
+    {
+        $methodMap = [
+            self::METHOD_CREDIT_CARD => 'Credit Card',
+            self::METHOD_DEBIT_CARD => 'Debit Card',
+            self::METHOD_BANK_TRANSFER => 'Bank Transfer',
+            self::METHOD_WIRE_TRANSFER => 'Wire Transfer',
+            self::METHOD_INTERNATIONAL_PAYMENT => 'International Payment',
+        ];
+        
+        return $methodMap[$this->payment_method] ?? $this->payment_method;
+    }
+
+    /**
+     * Get the payment type description.
+     *
+     * @return string
+     */
+    public function getPaymentTypeDescriptionAttribute(): string
+    {
+        $typeMap = [
+            self::TYPE_APPLICATION_FEE => 'Application Fee',
+            self::TYPE_ENROLLMENT_DEPOSIT => 'Enrollment Deposit',
+            self::TYPE_TUITION => 'Tuition',
+            self::TYPE_OTHER => 'Other',
+        ];
+        
+        return $typeMap[$this->payment_type] ?? $this->payment_type;
+    }
+
+    /**
+     * Get the payment status description.
+     *
+     * @return string
+     */
+    public function getStatusDescriptionAttribute(): string
+    {
+        $statusMap = [
+            self::STATUS_PENDING => 'Pending',
+            self::STATUS_COMPLETED => 'Completed',
+            self::STATUS_FAILED => 'Failed',
+            self::STATUS_REFUNDED => 'Refunded',
+        ];
+        
+        return $statusMap[$this->status] ?? $this->status;
+    }
+
+    /**
+     * Get a summary of the payment details.
+     *
+     * @return array
+     */
+    public function getSummary(): array
+    {
+        return [
+            'id' => $this->id,
+            'type' => $this->payment_type_description,
+            'amount' => $this->formatted_amount,
+            'method' => $this->payment_method_description,
+            'status' => $this->status_description,
+            'date' => $this->paid_at ? $this->paid_at->toFormattedDateString() : null,
+        ];
+    }
+
+    /**
+     * Get last four digits of payment card if available.
+     *
+     * @return string|null
+     */
+    public function getLastFourDigits(): ?string
+    {
+        $cardMethods = [self::METHOD_CREDIT_CARD, self::METHOD_DEBIT_CARD];
+        
+        if (in_array($this->payment_method, $cardMethods) && isset($this->payment_data['last_four'])) {
+            return $this->payment_data['last_four'];
+        }
+        
+        return null;
+    }
+
+    /**
+     * Get the card type if available.
+     *
+     * @return string|null
+     */
+    public function getCardType(): ?string
+    {
+        $cardMethods = [self::METHOD_CREDIT_CARD, self::METHOD_DEBIT_CARD];
+        
+        if (in_array($this->payment_method, $cardMethods) && isset($this->payment_data['card_type'])) {
+            return $this->payment_data['card_type'];
+        }
+        
+        return null;
+    }
+
+    /**
+     * Get billing address if available.
+     *
+     * @return array|null
+     */
+    public function getBillingAddress(): ?array
+    {
+        if (isset($this->payment_data['billing_address'])) {
+            return $this->payment_data['billing_address'];
+        }
+        
+        return null;
+    }
+
+    /**
+     * Get processor response if available.
+     *
+     * @return array|null
+     */
+    public function getProcessorResponse(): ?array
+    {
+        if (isset($this->payment_data['processor_response'])) {
+            return $this->payment_data['processor_response'];
+        }
+        
+        return null;
+    }
+
+    /**
+     * Get error information if payment failed.
+     *
+     * @return array|null
+     */
+    public function getErrorInfo(): ?array
+    {
+        if ($this->hasFailed() && isset($this->payment_data['error'])) {
+            return $this->payment_data['error'];
+        }
+        
+        return null;
+    }
+
+    /**
+     * Get refund information if payment was refunded.
+     *
+     * @return array|null
+     */
+    public function getRefundInfo(): ?array
+    {
+        if ($this->isRefunded()) {
+            return [
+                'reason' => $this->payment_data['refund_reason'] ?? null,
+                'date' => isset($this->payment_data['refund_date']) ? new Carbon($this->payment_data['refund_date']) : null,
+                'by_user_id' => $this->payment_data['refund_by_user_id'] ?? null,
+                'original_transaction_id' => $this->payment_data['original_transaction_id'] ?? null,
+            ];
+        }
+        
+        return null;
+    }
+}
