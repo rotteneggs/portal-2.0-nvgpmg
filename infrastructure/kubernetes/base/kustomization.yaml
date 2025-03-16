@@ -1,0 +1,51 @@
+# Base Kustomize configuration for Student Admissions Enrollment Platform
+# This file defines common resources, labels, and configurations shared across all environments
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+metadata:
+  name: admissions-platform-base
+
+# No resources defined in base to avoid circular dependencies
+# All deployments, services, and ingress resources are defined in environment-specific overlays
+resources: []
+
+# Common labels applied to all resources for identification and selection
+commonLabels:
+  app: admissions-platform
+
+# ConfigMap generators for common configuration
+configMapGenerator:
+  # Backend environment variables for the Laravel application
+  - name: backend-env
+    literals:
+      - APP_NAME=Student Admissions Enrollment Platform
+      - CACHE_DRIVER=redis
+      - QUEUE_CONNECTION=redis
+      - SESSION_DRIVER=redis
+      - DB_CONNECTION=mysql
+      - DB_PORT=3306
+      - REDIS_PORT=6379
+      - REDIS_HOST=redis
+
+  # Frontend environment variables for the React application
+  - name: frontend-env
+    literals:
+      - NODE_ENV=production
+      
+  # Redis configuration
+  - name: redis-config
+    files:
+      - redis.conf
+
+# Note: Environment-specific configurations are defined in overlay directories:
+# - infrastructure/kubernetes/overlays/dev/kustomization.yaml (development)
+# - infrastructure/kubernetes/overlays/staging/kustomization.yaml (staging)
+# - infrastructure/kubernetes/overlays/production/kustomization.yaml (production)
+#
+# Environment-specific settings include:
+# - Resource definitions (deployments, services, ingress)
+# - Environment variables (APP_ENV, APP_DEBUG, APP_URL, etc.)
+# - Secrets (database credentials, API keys, etc.)
+# - Resource scaling (replica counts)
+# - Image tags and versions
+# - Hostname and TLS configurations
