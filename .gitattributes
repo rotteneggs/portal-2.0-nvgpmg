@@ -1,0 +1,58 @@
+* text=auto eol=lf
+
+# Documents
+*.md text diff=markdown
+*.txt text
+*.pdf binary
+
+# Graphics
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg text
+
+# Scripts
+*.bash text eol=lf
+*.sh text eol=lf
+*.js text eol=lf
+*.ts text eol=lf
+*.jsx text eol=lf
+*.tsx text eol=lf
+*.php text eol=lf
+
+# Config files
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.xml text eol=lf
+*.conf text eol=lf
+*.ini text eol=lf
+*.env.* text eol=lf
+
+# Laravel specific
+*.blade.php text eol=lf
+artisan text eol=lf
+
+# React specific
+*.css text eol=lf
+*.scss text eol=lf
+*.sass text eol=lf
+
+# Docker specific
+Dockerfile text eol=lf
+docker-compose*.yml text eol=lf
+
+# Exclude files from exporting
+.gitattributes export-ignore
+.gitignore export-ignore
+.github export-ignore
+README.md export-ignore
+CHANGELOG.md export-ignore
+LICENSE export-ignore
+docs export-ignore
+tests export-ignore
+cypress export-ignore
+*.test.* export-ignore
+*.spec.* export-ignore
