@@ -1,0 +1,85 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+metadata:
+  name: admissions-platform-dev
+
+# Reference the base kustomization
+resources:
+  - ../../base
+
+# Set the namespace for all resources
+namespace: admissions-dev
+
+# Add common labels to all resources
+commonLabels:
+  app: admissions-platform
+  environment: development
+
+# Strategic merge patches
+patchesStrategicMerge:
+  - env-configmap.yaml
+
+# Generate or merge ConfigMaps
+configMapGenerator:
+  - name: backend-env
+    behavior: merge
+    literals:
+      - APP_ENV=development
+      - APP_DEBUG=true
+      - APP_URL=https://dev.admissions.example.edu
+      - LOG_LEVEL=debug
+  - name: frontend-env
+    behavior: merge
+    literals:
+      - REACT_APP_API_URL=https://dev.admissions.example.edu/api
+      - REACT_APP_ENV=development
+
+# Generate or merge Secrets
+secretGenerator:
+  - name: backend-secrets
+    behavior: merge
+    type: Opaque
+    literals:
+      - APP_KEY=base64:development-environment-encryption-key
+      - DB_HOST=dev-mysql.database.svc.cluster.local
+      - DB_DATABASE=admissions_dev
+      - DB_USERNAME=admissions_user
+      - DB_PASSWORD=dev-db-password
+      - REDIS_PASSWORD=dev-redis-password
+      - MAIL_HOST=mailhog.admissions-dev.svc.cluster.local
+      - MAIL_PORT=1025
+      - MAIL_USERNAME=null
+      - MAIL_PASSWORD=null
+
+# Update image tags
+images:
+  - name: admissions-platform/backend
+    newName: admissions-platform/backend
+    newTag: dev
+  - name: admissions-platform/frontend
+    newName: admissions-platform/frontend
+    newTag: dev
+
+# Set replica counts
+replicas:
+  - name: backend
+    count: 1
+  - name: frontend
+    count: 1
+  - name: redis
+    count: 1
+
+# JSON patches for Ingress
+patchesJson6902:
+  - target:
+      group: networking.k8s.io
+      version: v1
+      kind: Ingress
+      name: admissions-platform-ingress
+    patch:
+      - op: replace
+        path: /spec/rules/0/host
+        value: dev.admissions.example.edu
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: dev.admissions.example.edu
