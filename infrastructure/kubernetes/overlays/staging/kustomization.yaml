@@ -1,0 +1,86 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+metadata:
+  name: admissions-platform-staging
+
+# Reference to the base configuration
+resources:
+  - ../../base
+
+# Set the Kubernetes namespace for all resources
+namespace: admissions-staging
+
+# Add staging-specific labels to all resources
+commonLabels:
+  app: admissions-platform
+  environment: staging
+
+# Include strategic merge patches
+patchesStrategicMerge:
+  - env-configmap.yaml
+
+# Generate ConfigMaps with environment-specific values
+configMapGenerator:
+  - name: backend-env
+    behavior: merge
+    literals:
+      - APP_ENV=staging
+      - APP_DEBUG=false
+      - APP_URL=https://staging.admissions.example.edu
+      - LOG_LEVEL=warning
+  
+  - name: frontend-env
+    behavior: merge
+    literals:
+      - REACT_APP_API_URL=https://staging.admissions.example.edu/api
+      - REACT_APP_ENV=staging
+
+# Generate Secrets with sensitive staging-specific values
+secretGenerator:
+  - name: backend-secrets
+    behavior: merge
+    type: Opaque
+    literals:
+      - APP_KEY=base64:staging-environment-encryption-key
+      - DB_HOST=staging-mysql.database.svc.cluster.local
+      - DB_DATABASE=admissions_staging
+      - DB_USERNAME=admissions_user
+      - DB_PASSWORD=staging-db-password
+      - REDIS_PASSWORD=staging-redis-password
+      - MAIL_HOST=smtp.mailgun.org
+      - MAIL_PORT=587
+      - MAIL_USERNAME=staging-admissions@example.edu
+      - MAIL_PASSWORD=staging-mail-password
+
+# Set the container image tags for staging
+images:
+  - name: admissions-platform/backend
+    newName: admissions-platform/backend
+    newTag: staging
+  - name: admissions-platform/frontend
+    newName: admissions-platform/frontend
+    newTag: staging
+
+# Configure the number of replicas for each component
+replicas:
+  - name: backend
+    count: 2
+  - name: frontend
+    count: 2
+  - name: redis
+    count: 1
+
+# JSON patch for updating the Ingress hostname for staging
+patchesJson6902:
+  - target:
+      group: networking.k8s.io
+      version: v1
+      kind: Ingress
+      name: admissions-platform-ingress
+    patch:
+      - op: replace
+        path: /spec/rules/0/host
+        value: staging.admissions.example.edu
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: staging.admissions.example.edu
