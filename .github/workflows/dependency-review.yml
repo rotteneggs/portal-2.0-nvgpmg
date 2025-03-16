@@ -1,0 +1,26 @@
+# Dependency Review workflow that scans dependencies for security vulnerabilities
+# and license compliance when pull requests are opened or updated.
+name: Dependency Review
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+      
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v3
+        with:
+          # Fail the check if high severity vulnerabilities are found
+          fail-on-severity: high
+          # Deny these licenses to maintain compliance with proprietary software
+          deny-licenses: GPL-3.0, AGPL-3.0
+          # Fail on both runtime and development dependencies
+          fail-on-scopes: runtime, development
