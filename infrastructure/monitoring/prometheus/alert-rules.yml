@@ -1,0 +1,568 @@
+groups:
+  - name: system_alerts
+    rules:
+    - alert: HighCPUUsage
+      expr: avg by(instance) (rate(node_cpu_seconds_total{mode!="idle"}[5m]) * 100) > 85
+      for: 5m
+      labels:
+        severity: warning
+        team: infrastructure
+      annotations:
+        summary: High CPU usage detected
+        description: CPU usage on {{ $labels.instance }} has exceeded 85% for more than 5 minutes.
+        dashboard: https://grafana.example.com/d/admissions-system/student-admissions-system-dashboard
+    
+    - alert: CriticalCPUUsage
+      expr: avg by(instance) (rate(node_cpu_seconds_total{mode!="idle"}[5m]) * 100) > 95
+      for: 5m
+      labels:
+        severity: critical
+        team: infrastructure
+      annotations:
+        summary: Critical CPU usage detected
+        description: CPU usage on {{ $labels.instance }} has exceeded 95% for more than 5 minutes.
+        dashboard: https://grafana.example.com/d/admissions-system/student-admissions-system-dashboard
+    
+    - alert: HighMemoryUsage
+      expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+      for: 5m
+      labels:
+        severity: warning
+        team: infrastructure
+      annotations:
+        summary: High memory usage detected
+        description: Memory usage on {{ $labels.instance }} has exceeded 85% for more than 5 minutes.
+        dashboard: https://grafana.example.com/d/admissions-system/student-admissions-system-dashboard
+    
+    - alert: CriticalMemoryUsage
+      expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 95
+      for: 5m
+      labels:
+        severity: critical
+        team: infrastructure
+      annotations:
+        summary: Critical memory usage detected
+        description: Memory usage on {{ $labels.instance }} has exceeded 95% for more than 5 minutes.
+        dashboard: https://grafana.example.com/d/admissions-system/student-admissions-system-dashboard
+    
+    - alert: DiskSpaceRunningOut
+      expr: (node_filesystem_size_bytes{mountpoint="/"} - node_filesystem_free_bytes{mountpoint="/"}) / node_filesystem_size_bytes{mountpoint="/"} * 100 > 85
+      for: 5m
+      labels:
+        severity: warning
+        team: infrastructure
+      annotations:
+        summary: Disk space running low
+        description: Disk usage on {{ $labels.instance }} ({{ $labels.mountpoint }}) has exceeded 85% for more than 5 minutes.
+        dashboard: https://grafana.example.com/d/admissions-system/student-admissions-system-dashboard
+    
+    - alert: CriticalDiskSpace
+      expr: (node_filesystem_size_bytes{mountpoint="/"} - node_filesystem_free_bytes{mountpoint="/"}) / node_filesystem_size_bytes{mountpoint="/"} * 100 > 95
+      for: 5m
+      labels:
+        severity: critical
+        team: infrastructure
+      annotations:
+        summary: Critical disk space shortage
+        description: Disk usage on {{ $labels.instance }} ({{ $labels.mountpoint }}) has exceeded 95% for more than 5 minutes.
+        dashboard: https://grafana.example.com/d/admissions-system/student-admissions-system-dashboard
+    
+    - alert: InstanceDown
+      expr: up == 0
+      for: 5m
+      labels:
+        severity: critical
+        team: infrastructure
+      annotations:
+        summary: Instance {{ $labels.instance }} down
+        description: '{{ $labels.instance }} of job {{ $labels.job }} has been down for more than 5 minutes.'
+        dashboard: https://grafana.example.com/d/admissions-system/student-admissions-system-dashboard
+    
+    - alert: HighNetworkTraffic
+      expr: sum by (instance) (rate(node_network_receive_bytes_total{device!="lo"}[5m]) + rate(node_network_transmit_bytes_total{device!="lo"}[5m])) / 1024 / 1024 > 100
+      for: 5m
+      labels:
+        severity: warning
+        team: infrastructure
+      annotations:
+        summary: High network traffic detected
+        description: Network traffic on {{ $labels.instance }} has exceeded 100 MB/s for more than 5 minutes.
+        dashboard: https://grafana.example.com/d/admissions-system/student-admissions-system-dashboard
+
+  - name: application_alerts
+    rules:
+    - alert: HighResponseTime
+      expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 0.5
+      for: 5m
+      labels:
+        severity: warning
+        team: application
+      annotations:
+        summary: High response time detected
+        description: 95th percentile of response time is above 500ms for more than 5 minutes.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+    
+    - alert: CriticalResponseTime
+      expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 1
+      for: 5m
+      labels:
+        severity: critical
+        team: application
+      annotations:
+        summary: Critical response time detected
+        description: 95th percentile of response time is above 1s for more than 5 minutes.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+    
+    - alert: HighErrorRate
+      expr: sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) * 100 > 1
+      for: 5m
+      labels:
+        severity: warning
+        team: application
+      annotations:
+        summary: High error rate detected
+        description: Error rate is above 1% for more than 5 minutes.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+    
+    - alert: CriticalErrorRate
+      expr: sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) * 100 > 5
+      for: 5m
+      labels:
+        severity: critical
+        team: application
+      annotations:
+        summary: Critical error rate detected
+        description: Error rate is above 5% for more than 5 minutes.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+    
+    - alert: HighRequestVolume
+      expr: sum(rate(http_requests_total[5m])) > 1000
+      for: 5m
+      labels:
+        severity: warning
+        team: application
+      annotations:
+        summary: High request volume detected
+        description: Request rate is above 1000 requests per second for more than 5 minutes.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+    
+    - alert: EndpointLatencySLAViolation
+      expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{handler=~"/api/v1/applications.*"}[5m])) by (handler, le)) > 0.3
+      for: 5m
+      labels:
+        severity: warning
+        team: application
+        sla: violated
+      annotations:
+        summary: Endpoint latency SLA violation
+        description: 95th percentile of response time for {{ $labels.handler }} is above 300ms for more than 5 minutes, violating SLA.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+    
+    - alert: ApplicationDown
+      expr: up{job="application"} == 0
+      for: 1m
+      labels:
+        severity: critical
+        team: application
+      annotations:
+        summary: Application instance down
+        description: Application instance {{ $labels.instance }} has been down for more than 1 minute.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+
+  - name: database_alerts
+    rules:
+    - alert: HighDatabaseConnectionUsage
+      expr: mysql_global_status_threads_connected / mysql_global_variables_max_connections * 100 > 80
+      for: 5m
+      labels:
+        severity: warning
+        team: database
+      annotations:
+        summary: High database connection usage
+        description: MySQL connection usage on {{ $labels.instance }} is above 80% for more than 5 minutes.
+        dashboard: https://grafana.example.com/d/admissions-system/student-admissions-system-dashboard
+    
+    - alert: CriticalDatabaseConnectionUsage
+      expr: mysql_global_status_threads_connected / mysql_global_variables_max_connections * 100 > 90
+      for: 5m
+      labels:
+        severity: critical
+        team: database
+      annotations:
+        summary: Critical database connection usage
+        description: MySQL connection usage on {{ $labels.instance }} is above 90% for more than 5 minutes.
+        dashboard: https://grafana.example.com/d/admissions-system/student-admissions-system-dashboard
+    
+    - alert: HighReplicationLag
+      expr: mysql_global_status_seconds_behind_master > 30
+      for: 5m
+      labels:
+        severity: warning
+        team: database
+      annotations:
+        summary: High MySQL replication lag
+        description: MySQL replication lag on {{ $labels.instance }} is above 30 seconds for more than 5 minutes.
+        dashboard: https://grafana.example.com/d/admissions-system/student-admissions-system-dashboard
+    
+    - alert: CriticalReplicationLag
+      expr: mysql_global_status_seconds_behind_master > 300
+      for: 5m
+      labels:
+        severity: critical
+        team: database
+      annotations:
+        summary: Critical MySQL replication lag
+        description: MySQL replication lag on {{ $labels.instance }} is above 5 minutes for more than 5 minutes.
+        dashboard: https://grafana.example.com/d/admissions-system/student-admissions-system-dashboard
+    
+    - alert: HighSlowQueryRate
+      expr: rate(mysql_global_status_slow_queries[5m]) > 5
+      for: 5m
+      labels:
+        severity: warning
+        team: database
+      annotations:
+        summary: High rate of slow queries
+        description: MySQL slow query rate on {{ $labels.instance }} is above 5 per second for more than 5 minutes.
+        dashboard: https://grafana.example.com/d/admissions-system/student-admissions-system-dashboard
+    
+    - alert: DatabaseDown
+      expr: mysql_up == 0
+      for: 1m
+      labels:
+        severity: critical
+        team: database
+      annotations:
+        summary: Database instance down
+        description: MySQL instance {{ $labels.instance }} has been down for more than 1 minute.
+        dashboard: https://grafana.example.com/d/admissions-system/student-admissions-system-dashboard
+
+  - name: redis_alerts
+    rules:
+    - alert: HighRedisMemoryUsage
+      expr: redis_memory_used_bytes / redis_memory_max_bytes * 100 > 80
+      for: 5m
+      labels:
+        severity: warning
+        team: infrastructure
+      annotations:
+        summary: High Redis memory usage
+        description: Redis memory usage on {{ $labels.instance }} is above 80% for more than 5 minutes.
+        dashboard: https://grafana.example.com/d/admissions-system/student-admissions-system-dashboard
+    
+    - alert: CriticalRedisMemoryUsage
+      expr: redis_memory_used_bytes / redis_memory_max_bytes * 100 > 90
+      for: 5m
+      labels:
+        severity: critical
+        team: infrastructure
+      annotations:
+        summary: Critical Redis memory usage
+        description: Redis memory usage on {{ $labels.instance }} is above 90% for more than 5 minutes.
+        dashboard: https://grafana.example.com/d/admissions-system/student-admissions-system-dashboard
+    
+    - alert: RedisKeyEvictionRate
+      expr: rate(redis_evicted_keys_total[5m]) > 0
+      for: 5m
+      labels:
+        severity: warning
+        team: infrastructure
+      annotations:
+        summary: Redis key eviction occurring
+        description: Redis on {{ $labels.instance }} is evicting keys for more than 5 minutes.
+        dashboard: https://grafana.example.com/d/admissions-system/student-admissions-system-dashboard
+    
+    - alert: HighRedisKeyEvictionRate
+      expr: rate(redis_evicted_keys_total[5m]) > 100
+      for: 5m
+      labels:
+        severity: critical
+        team: infrastructure
+      annotations:
+        summary: High Redis key eviction rate
+        description: Redis on {{ $labels.instance }} is evicting more than 100 keys per second for more than 5 minutes.
+        dashboard: https://grafana.example.com/d/admissions-system/student-admissions-system-dashboard
+    
+    - alert: RedisDown
+      expr: redis_up == 0
+      for: 1m
+      labels:
+        severity: critical
+        team: infrastructure
+      annotations:
+        summary: Redis instance down
+        description: Redis instance {{ $labels.instance }} has been down for more than 1 minute.
+        dashboard: https://grafana.example.com/d/admissions-system/student-admissions-system-dashboard
+
+  - name: queue_alerts
+    rules:
+    - alert: HighQueueDepth
+      expr: sum by (queue) (queue_depth) > 1000
+      for: 15m
+      labels:
+        severity: warning
+        team: application
+      annotations:
+        summary: High queue depth detected
+        description: Queue {{ $labels.queue }} has more than 1000 pending jobs for more than 15 minutes.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+    
+    - alert: CriticalQueueDepth
+      expr: sum by (queue) (queue_depth) > 5000
+      for: 15m
+      labels:
+        severity: critical
+        team: application
+      annotations:
+        summary: Critical queue depth detected
+        description: Queue {{ $labels.queue }} has more than 5000 pending jobs for more than 15 minutes.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+    
+    - alert: HighQueueFailureRate
+      expr: sum by (queue) (rate(queue_jobs_processed_total{status="failed"}[5m])) / sum by (queue) (rate(queue_jobs_processed_total[5m])) * 100 > 5
+      for: 15m
+      labels:
+        severity: warning
+        team: application
+      annotations:
+        summary: High queue failure rate
+        description: Queue {{ $labels.queue }} has a failure rate above 5% for more than 15 minutes.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+    
+    - alert: CriticalQueueFailureRate
+      expr: sum by (queue) (rate(queue_jobs_processed_total{status="failed"}[5m])) / sum by (queue) (rate(queue_jobs_processed_total[5m])) * 100 > 20
+      for: 15m
+      labels:
+        severity: critical
+        team: application
+      annotations:
+        summary: Critical queue failure rate
+        description: Queue {{ $labels.queue }} has a failure rate above 20% for more than 15 minutes.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+    
+    - alert: DocumentProcessingQueueBacklog
+      expr: sum(queue_depth{queue="document_processing"}) > 500
+      for: 30m
+      labels:
+        severity: warning
+        team: application
+      annotations:
+        summary: Document processing queue backlog
+        description: Document processing queue has more than 500 pending jobs for more than 30 minutes.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+
+  - name: integration_alerts
+    rules:
+    - alert: IntegrationDown
+      expr: sis_integration_health == 0 or lms_integration_health == 0 or payment_gateway_health == 0
+      for: 5m
+      labels:
+        severity: critical
+        team: integration
+      annotations:
+        summary: Integration service down
+        description: Integration service {{ $labels.integration }} has been down for more than 5 minutes.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+    
+    - alert: HighIntegrationResponseTime
+      expr: avg by (integration) (integration_response_time_ms) > 1000
+      for: 5m
+      labels:
+        severity: warning
+        team: integration
+      annotations:
+        summary: High integration response time
+        description: Integration {{ $labels.integration }} has an average response time above 1000ms for more than 5 minutes.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+    
+    - alert: CriticalIntegrationResponseTime
+      expr: avg by (integration) (integration_response_time_ms) > 3000
+      for: 5m
+      labels:
+        severity: critical
+        team: integration
+      annotations:
+        summary: Critical integration response time
+        description: Integration {{ $labels.integration }} has an average response time above 3000ms for more than 5 minutes.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+    
+    - alert: HighIntegrationErrorRate
+      expr: sum by (integration) (rate(integration_error_total[5m])) / sum by (integration) (rate(integration_request_total[5m])) * 100 > 5
+      for: 5m
+      labels:
+        severity: warning
+        team: integration
+      annotations:
+        summary: High integration error rate
+        description: Integration {{ $labels.integration }} has an error rate above 5% for more than 5 minutes.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+    
+    - alert: CriticalIntegrationErrorRate
+      expr: sum by (integration) (rate(integration_error_total[5m])) / sum by (integration) (rate(integration_request_total[5m])) * 100 > 20
+      for: 5m
+      labels:
+        severity: critical
+        team: integration
+      annotations:
+        summary: Critical integration error rate
+        description: Integration {{ $labels.integration }} has an error rate above 20% for more than 5 minutes.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+    
+    - alert: SISIntegrationSyncFailure
+      expr: increase(integration_sync_failures_total{integration="sis"}[1h]) > 3
+      for: 1h
+      labels:
+        severity: critical
+        team: integration
+      annotations:
+        summary: SIS integration sync failures
+        description: SIS integration has experienced more than 3 sync failures in the last hour.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+
+  - name: business_alerts
+    rules:
+    - alert: LowApplicationSubmissionRate
+      expr: sum(rate(application_submitted_total[6h])) < 0.1 and hour() >= 8 and hour() < 20 and day_of_week() >= 1 and day_of_week() <= 5
+      for: 1h
+      labels:
+        severity: warning
+        team: business
+      annotations:
+        summary: Low application submission rate
+        description: Application submission rate is below expected levels during business hours.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+    
+    - alert: HighDocumentVerificationTime
+      expr: avg(document_verification_duration_seconds) > 300
+      for: 1h
+      labels:
+        severity: warning
+        team: business
+      annotations:
+        summary: High document verification time
+        description: Average document verification time is above 5 minutes for more than 1 hour.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+    
+    - alert: LowDocumentVerificationSuccessRate
+      expr: sum(document_verification_success_total) / sum(document_verification_total) * 100 < 90
+      for: 1h
+      labels:
+        severity: warning
+        team: business
+      annotations:
+        summary: Low document verification success rate
+        description: Document verification success rate is below 90% for more than 1 hour.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+    
+    - alert: HighApplicationAbandonmentRate
+      expr: (sum(application_started_total) - sum(application_submitted_total)) / sum(application_started_total) * 100 > 60
+      for: 24h
+      labels:
+        severity: warning
+        team: business
+      annotations:
+        summary: High application abandonment rate
+        description: More than 60% of started applications are not being submitted over the past 24 hours.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+    
+    - alert: PaymentProcessingFailureRate
+      expr: sum(rate(payment_processing_failures_total[1h])) / sum(rate(payment_processing_attempts_total[1h])) * 100 > 5
+      for: 1h
+      labels:
+        severity: critical
+        team: business
+      annotations:
+        summary: High payment processing failure rate
+        description: Payment processing failure rate is above 5% for more than 1 hour.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+
+  - name: sla_alerts
+    rules:
+    - alert: APIResponseTimeSLAViolation
+      expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 0.5
+      for: 15m
+      labels:
+        severity: critical
+        team: application
+        sla: violated
+      annotations:
+        summary: API response time SLA violation
+        description: 95th percentile of API response time is above 500ms for more than 15 minutes, violating SLA.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+    
+    - alert: ApplicationAvailabilitySLAViolation
+      expr: avg_over_time(up{job="application"}[1h]) * 100 < 99.9
+      for: 1h
+      labels:
+        severity: critical
+        team: application
+        sla: violated
+      annotations:
+        summary: Application availability SLA violation
+        description: Application availability has dropped below 99.9% over the past hour, violating SLA.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+    
+    - alert: DocumentProcessingTimeSLAViolation
+      expr: avg(document_verification_duration_seconds) > 120
+      for: 1h
+      labels:
+        severity: warning
+        team: business
+        sla: violated
+      annotations:
+        summary: Document processing time SLA violation
+        description: Average document processing time is above 2 minutes for more than 1 hour, violating SLA.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+    
+    - alert: DatabaseAvailabilitySLAViolation
+      expr: avg_over_time(mysql_up[1h]) * 100 < 99.99
+      for: 1h
+      labels:
+        severity: critical
+        team: database
+        sla: violated
+      annotations:
+        summary: Database availability SLA violation
+        description: Database availability has dropped below 99.99% over the past hour, violating SLA.
+        dashboard: https://grafana.example.com/d/admissions-system/student-admissions-system-dashboard
+    
+    - alert: IntegrationResponseTimeSLAViolation
+      expr: avg by (integration) (integration_response_time_ms) > 1000
+      for: 1h
+      labels:
+        severity: warning
+        team: integration
+        sla: violated
+      annotations:
+        summary: Integration response time SLA violation
+        description: Integration {{ $labels.integration }} response time is above 1000ms for more than 1 hour, violating SLA.
+        dashboard: https://grafana.example.com/d/admissions-application/student-admissions-application-dashboard
+
+  - name: recording_rules
+    rules:
+    - record: job:http_requests_total:rate5m
+      expr: sum(rate(http_requests_total[5m])) by (job)
+    
+    - record: job:http_request_duration_seconds:p95
+      expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (job, le))
+    
+    - record: job:http_errors_total:rate5m
+      expr: sum(rate(http_requests_total{status=~"5.."}[5m])) by (job)
+    
+    - record: job:http_error_rate:ratio5m
+      expr: sum(rate(http_requests_total{status=~"5.."}[5m])) by (job) / sum(rate(http_requests_total[5m])) by (job)
+    
+    - record: instance:node_cpu_utilization:avg5m
+      expr: avg by(instance) (rate(node_cpu_seconds_total{mode!="idle"}[5m]) * 100)
+    
+    - record: instance:node_memory_utilization:ratio
+      expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100
+    
+    - record: instance:node_disk_utilization:ratio
+      expr: (node_filesystem_size_bytes{mountpoint="/"} - node_filesystem_free_bytes{mountpoint="/"}) / node_filesystem_size_bytes{mountpoint="/"} * 100
+    
+    - record: instance:mysql_connection_utilization:ratio
+      expr: mysql_global_status_threads_connected / mysql_global_variables_max_connections * 100
+    
+    - record: instance:redis_memory_utilization:ratio
+      expr: redis_memory_used_bytes / redis_memory_max_bytes * 100
