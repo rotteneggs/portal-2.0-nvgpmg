@@ -1,0 +1,71 @@
+# This workflow uses CodeQL, GitHub's semantic code analysis engine, to identify vulnerabilities 
+# in the Student Admissions Enrollment Platform codebase. It automatically scans PHP (backend) 
+# and JavaScript/TypeScript (frontend) code for potential security issues, bugs, and quality issues.
+
+name: CodeQL Analysis
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths-ignore: 
+      - '**/*.md'
+      - '**/*.txt'
+      - '**/*.yml'
+      - '**/*.yaml'
+      - '**/*.json'
+      - '**/*.html'
+      - 'docs/**'
+  pull_request:
+    branches: [ main, develop ]
+    paths-ignore: 
+      - '**/*.md'
+      - '**/*.txt'
+      - '**/*.yml'
+      - '**/*.yaml'
+      - '**/*.json'
+      - '**/*.html'
+      - 'docs/**'
+  schedule:
+    # Run weekly on Sundays at midnight
+    - cron: '0 0 * * 0'
+  # Allow manual triggering of the workflow
+  workflow_dispatch:
+
+# Permissions required for this workflow
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        # CodeQL supports PHP, JavaScript/TypeScript for our project
+        language: [ 'javascript', 'typescript', 'php' ]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: ${{ matrix.language }}
+          # Use security-and-quality query suite for comprehensive analysis
+          queries: security-and-quality
+          # Custom configuration file
+          config-file: ./.github/codeql/codeql-config.yml
+
+      # Autobuild attempts to build any compiled languages
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v2
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+        with:
+          category: ${{ matrix.language }}
