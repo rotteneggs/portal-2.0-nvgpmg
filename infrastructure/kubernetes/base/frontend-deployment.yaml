@@ -1,0 +1,92 @@
+# Frontend Deployment for Student Admissions Enrollment Platform
+# This deployment manages the React frontend containers that serve the user interface
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  labels:
+    app: admissions-platform
+    tier: frontend
+spec:
+  # Define 2 replicas for high availability and load distribution
+  # This value can be overridden in environment-specific overlays
+  replicas: 2
+  
+  # Pod selector - identifies which pods are managed by this deployment
+  # This must match the labels in the pod template
+  selector:
+    matchLabels:
+      app: admissions-platform
+      tier: frontend
+  
+  # Deployment update strategy configuration
+  strategy:
+    # RollingUpdate ensures zero-downtime updates by gradually replacing pods
+    type: RollingUpdate
+    rollingUpdate:
+      # Allow creation of up to 1 additional pod during updates (25% surge for 2 replicas)
+      maxSurge: 1
+      # Ensure no pods are unavailable during updates (zero downtime)
+      maxUnavailable: 0
+  
+  # Pod template specification - defines the pods created by this deployment
+  template:
+    metadata:
+      # Labels applied to pods created by this deployment
+      # Must include selector labels defined above
+      labels:
+        app: admissions-platform
+        tier: frontend
+    spec:
+      containers:
+        - name: frontend
+          # Image reference for the React frontend container
+          # The base tag 'latest' is typically overridden in environment-specific overlays
+          # with a specific version for better stability and tracking
+          image: admissions-platform/frontend:latest
+          imagePullPolicy: IfNotPresent
+          
+          # Port configuration - exposes the Nginx web server port 
+          # that serves the React application
+          ports:
+            - containerPort: 80
+              name: http
+          
+          # Environment variables loaded from a ConfigMap
+          # The ConfigMap 'frontend-env' contains React app configuration
+          # such as API URL, environment name, feature flags, etc.
+          envFrom:
+            - configMapRef:
+                name: frontend-env
+          
+          # Resource allocation ensures the container has sufficient resources
+          # while preventing resource hogging or noisy neighbor issues
+          resources:
+            limits:
+              cpu: 500m        # Limit to half a CPU core
+              memory: 512Mi    # Limit to 512 megabytes of memory
+            requests:
+              cpu: 200m        # Request 20% of a CPU core
+              memory: 256Mi    # Request 256 megabytes of memory
+          
+          # Liveness probe - checks if the container is running properly
+          # If the probe fails, Kubernetes will restart the container
+          livenessProbe:
+            httpGet:
+              path: /health    # Health check endpoint
+              port: 80
+            initialDelaySeconds: 30  # Wait 30s before first probe
+            periodSeconds: 10        # Check every 10s
+            timeoutSeconds: 5        # Timeout after 5s
+            failureThreshold: 3      # Fail after 3 consecutive failures
+          
+          # Readiness probe - checks if the container is ready to serve traffic
+          # If the probe fails, the pod is removed from service endpoints
+          readinessProbe:
+            httpGet:
+              path: /health    # Health check endpoint
+              port: 80
+            initialDelaySeconds: 5   # Wait 5s before first probe
+            periodSeconds: 5         # Check every 5s
+            timeoutSeconds: 3        # Timeout after 3s
+            failureThreshold: 2      # Fail after 2 consecutive failures
