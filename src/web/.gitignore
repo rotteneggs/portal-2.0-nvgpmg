@@ -1,0 +1,47 @@
+/node_modules
+/.pnp
+.pnp.js
+
+# Testing
+/coverage
+/cypress/videos
+/cypress/screenshots
+
+# Production
+/build
+/dist
+
+# Environment files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE & Editor files
+/.idea
+/.vscode
+*.sublime-*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Misc
+*.log
+.eslintcache
+.stylelintcache
+/.husky/_
+
+# TypeScript
+*.tsbuildinfo
+
+# Exceptions
+!.gitignore
+!.env.example
+!public/robots.txt
+!public/favicon.ico
