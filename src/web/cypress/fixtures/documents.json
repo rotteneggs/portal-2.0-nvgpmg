@@ -1,0 +1,376 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\Storage;
+use Carbon\Carbon;
+
+class Document extends Model
+{
+    use HasFactory;
+
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array<int, string>
+     */
+    protected $fillable = [
+        'user_id',
+        'application_id',
+        'document_type',
+        'file_name',
+        'file_path',
+        'mime_type',
+        'file_size',
+        'is_verified',
+        'verified_at',
+        'verified_by_user_id',
+    ];
+
+    /**
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'is_verified' => 'boolean',
+        'verified_at' => 'datetime',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'file_size' => 'integer',
+    ];
+
+    /**
+     * The accessors to append to the model's array form.
+     *
+     * @var array<int, string>
+     */
+    protected $appends = [
+        'download_url',
+    ];
+
+    /**
+     * Get the user that owns the document.
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Get the application that the document belongs to.
+     */
+    public function application(): BelongsTo
+    {
+        return $this->belongsTo(Application::class);
+    }
+
+    /**
+     * Get the user that verified the document.
+     */
+    public function verifiedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'verified_by_user_id');
+    }
+
+    /**
+     * Get the verification record associated with the document.
+     */
+    public function verification(): HasOne
+    {
+        return $this->hasOne(DocumentVerification::class);
+    }
+
+    /**
+     * Get the download URL for the document.
+     *
+     * @return string
+     */
+    public function getDownloadUrlAttribute(): string
+    {
+        return "https://example.com/api/documents/{$this->id}/download";
+    }
+
+    /**
+     * Scope a query to only include verified documents.
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeVerified($query)
+    {
+        return $query->where('is_verified', true);
+    }
+
+    /**
+     * Scope a query to only include unverified documents.
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeUnverified($query)
+    {
+        return $query->where('is_verified', false);
+    }
+
+    /**
+     * Scope a query to filter by document type.
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @param string $type
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeOfType($query, $type)
+    {
+        return $query->where('document_type', $type);
+    }
+
+    /**
+     * Scope a query to filter by application.
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @param int $applicationId
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeForApplication($query, $applicationId)
+    {
+        return $query->where('application_id', $applicationId);
+    }
+
+    /**
+     * Scope a query to filter by user.
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @param int $userId
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeForUser($query, $userId)
+    {
+        return $query->where('user_id', $userId);
+    }
+
+    /**
+     * Mark the document as verified.
+     *
+     * @param int|null $verifiedByUserId
+     * @param string $verificationMethod
+     * @param array|null $verificationData
+     * @param string|null $notes
+     * @return bool
+     */
+    public function markAsVerified(int $verifiedByUserId = null, string $verificationMethod = 'manual', array $verificationData = null, string $notes = null): bool
+    {
+        $this->is_verified = true;
+        $this->verified_at = Carbon::now();
+        $this->verified_by_user_id = $verifiedByUserId;
+        
+        // Create or update verification record
+        if (!$this->verification) {
+            $this->verification()->create([
+                'verification_method' => $verificationMethod,
+                'verification_status' => 'verified',
+                'verification_data' => $verificationData,
+                'notes' => $notes,
+                'verified_by_user_id' => $verifiedByUserId,
+                'created_at' => Carbon::now()
+            ]);
+        } else {
+            $this->verification->update([
+                'verification_method' => $verificationMethod,
+                'verification_status' => 'verified',
+                'verification_data' => $verificationData,
+                'notes' => $notes,
+                'verified_by_user_id' => $verifiedByUserId
+            ]);
+        }
+        
+        return $this->save();
+    }
+
+    /**
+     * Mark the document verification as pending.
+     *
+     * @param string $verificationMethod
+     * @param string|null $notes
+     * @return bool
+     */
+    public function markAsPending(string $verificationMethod = 'ai', string $notes = null): bool
+    {
+        if (!$this->verification) {
+            $this->verification()->create([
+                'verification_method' => $verificationMethod,
+                'verification_status' => 'pending',
+                'notes' => $notes,
+                'created_at' => Carbon::now()
+            ]);
+        } else {
+            $this->verification->update([
+                'verification_method' => $verificationMethod,
+                'verification_status' => 'pending',
+                'notes' => $notes
+            ]);
+        }
+        
+        return $this->save();
+    }
+
+    /**
+     * Mark the document as rejected.
+     *
+     * @param int $verifiedByUserId
+     * @param string|null $notes
+     * @return bool
+     */
+    public function markAsRejected(int $verifiedByUserId, string $notes = null): bool
+    {
+        if (!$this->verification) {
+            $this->verification()->create([
+                'verification_method' => 'manual',
+                'verification_status' => 'rejected',
+                'notes' => $notes,
+                'verified_by_user_id' => $verifiedByUserId,
+                'created_at' => Carbon::now()
+            ]);
+        } else {
+            $this->verification->update([
+                'verification_method' => 'manual',
+                'verification_status' => 'rejected',
+                'notes' => $notes,
+                'verified_by_user_id' => $verifiedByUserId
+            ]);
+        }
+        
+        return $this->save();
+    }
+
+    /**
+     * Process AI verification with extracted data.
+     *
+     * @param array $verificationData
+     * @param float $confidenceScore
+     * @param string|null $notes
+     * @return bool
+     */
+    public function processAiVerification(array $verificationData, float $confidenceScore, string $notes = null): bool
+    {
+        $status = $confidenceScore >= 0.9 ? 'verified' : 'pending';
+        
+        if ($status === 'verified') {
+            $this->is_verified = true;
+            $this->verified_at = Carbon::now();
+        }
+        
+        if (!$this->verification) {
+            $this->verification()->create([
+                'verification_method' => 'ai',
+                'verification_status' => $status,
+                'verification_data' => $verificationData,
+                'confidence_score' => $confidenceScore,
+                'notes' => $notes,
+                'created_at' => Carbon::now()
+            ]);
+        } else {
+            $this->verification->update([
+                'verification_method' => 'ai',
+                'verification_status' => $status,
+                'verification_data' => $verificationData,
+                'confidence_score' => $confidenceScore,
+                'notes' => $notes
+            ]);
+        }
+        
+        return $this->save();
+    }
+
+    /**
+     * Get the storage path for the document.
+     *
+     * @return string
+     */
+    public function getStoragePath(): string
+    {
+        return $this->file_path;
+    }
+
+    /**
+     * Get the document file contents.
+     *
+     * @return string|null
+     */
+    public function getFileContents()
+    {
+        return Storage::get($this->getStoragePath());
+    }
+
+    /**
+     * Delete the document file from storage.
+     *
+     * @return bool
+     */
+    public function deleteFile(): bool
+    {
+        return Storage::delete($this->getStoragePath());
+    }
+
+    /**
+     * Check if document is of a specific type.
+     *
+     * @param string $type
+     * @return bool
+     */
+    public function isType(string $type): bool
+    {
+        return $this->document_type === $type;
+    }
+
+    /**
+     * Check if the document has been verified.
+     *
+     * @return bool
+     */
+    public function isVerified(): bool
+    {
+        return $this->is_verified;
+    }
+
+    /**
+     * Check if the document has a verification record.
+     *
+     * @return bool
+     */
+    public function hasVerification(): bool
+    {
+        return $this->verification !== null;
+    }
+
+    /**
+     * Get verification status.
+     *
+     * @return string|null
+     */
+    public function getVerificationStatus(): ?string
+    {
+        return $this->verification ? $this->verification->verification_status : null;
+    }
+
+    /**
+     * Get document types as constants.
+     *
+     * @return array
+     */
+    public static function types(): array
+    {
+        return [
+            'TRANSCRIPT' => 'TRANSCRIPT',
+            'ID' => 'ID',
+            'PERSONAL_STATEMENT' => 'PERSONAL_STATEMENT',
+            'RECOMMENDATION' => 'RECOMMENDATION',
+            'TEST_SCORE' => 'TEST_SCORE',
+            'RESEARCH_EXPERIENCE' => 'RESEARCH_EXPERIENCE',
+        ];
+    }
+}
