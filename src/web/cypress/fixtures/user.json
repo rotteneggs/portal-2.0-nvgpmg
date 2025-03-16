@@ -1,0 +1,329 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Support\Carbon;
+
+class User extends Authenticatable implements MustVerifyEmail
+{
+    use HasApiTokens, HasFactory, Notifiable;
+
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array<int, string>
+     */
+    protected $fillable = [
+        'email',
+        'password',
+        'email_verified_at',
+        'is_active',
+        'last_login_at',
+        'has_mfa_enabled',
+    ];
+
+    /**
+     * The attributes that should be hidden for serialization.
+     *
+     * @var array<int, string>
+     */
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
+    /**
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'email_verified_at' => 'datetime',
+        'last_login_at' => 'datetime',
+        'is_active' => 'boolean',
+        'has_mfa_enabled' => 'boolean',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+    ];
+
+    /**
+     * Get the user's profile.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasOne
+     */
+    public function profile()
+    {
+        return $this->hasOne(UserProfile::class);
+    }
+
+    /**
+     * Get the roles associated with the user.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
+     */
+    public function roles()
+    {
+        return $this->belongsToMany(Role::class, 'user_roles');
+    }
+
+    /**
+     * Get all applications submitted by the user.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function applications()
+    {
+        return $this->hasMany(Application::class);
+    }
+
+    /**
+     * Get all documents uploaded by the user.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function documents()
+    {
+        return $this->hasMany(Document::class);
+    }
+
+    /**
+     * Get messages sent by the user.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function sentMessages()
+    {
+        return $this->hasMany(Message::class, 'sender_user_id');
+    }
+
+    /**
+     * Get messages received by the user.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function receivedMessages()
+    {
+        return $this->hasMany(Message::class, 'recipient_user_id');
+    }
+
+    /**
+     * Get all payments made by the user.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    /**
+     * Get the user's full name.
+     *
+     * @return string|null
+     */
+    public function getFullNameAttribute()
+    {
+        if (!$this->profile) {
+            return null;
+        }
+        
+        return "{$this->profile->first_name} {$this->profile->last_name}";
+    }
+
+    /**
+     * Get the user's profile picture URL.
+     *
+     * @return string|null
+     */
+    public function getProfilePictureUrlAttribute()
+    {
+        // Implement logic to retrieve the profile picture URL
+        // This could be from your storage, a service, etc.
+        return null;
+    }
+
+    /**
+     * Get all permissions for the user based on their roles.
+     *
+     * @return array
+     */
+    public function getPermissionsAttribute()
+    {
+        return $this->roles->flatMap(function ($role) {
+            return $role->permissions->pluck('name');
+        })->unique()->values()->all();
+    }
+
+    /**
+     * Check if the user has a specific permission.
+     *
+     * @param string $permission
+     * @return bool
+     */
+    public function hasPermission($permission)
+    {
+        return in_array($permission, $this->permissions);
+    }
+
+    /**
+     * Check if the user has any of the given permissions.
+     *
+     * @param array $permissions
+     * @return bool
+     */
+    public function hasAnyPermission(array $permissions)
+    {
+        return $this->roles->flatMap(function ($role) {
+            return $role->permissions->pluck('name');
+        })->intersect($permissions)->isNotEmpty();
+    }
+
+    /**
+     * Check if the user has all of the given permissions.
+     *
+     * @param array $permissions
+     * @return bool
+     */
+    public function hasAllPermissions(array $permissions)
+    {
+        $userPermissions = $this->permissions;
+        foreach ($permissions as $permission) {
+            if (!in_array($permission, $userPermissions)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Check if the user has a specific role.
+     *
+     * @param string $roleName
+     * @return bool
+     */
+    public function hasRole($roleName)
+    {
+        return $this->roles->contains('name', $roleName);
+    }
+
+    /**
+     * Check if the user has any of the given roles.
+     *
+     * @param array $roleNames
+     * @return bool
+     */
+    public function hasAnyRole(array $roleNames)
+    {
+        return $this->roles->pluck('name')->intersect($roleNames)->isNotEmpty();
+    }
+
+    /**
+     * Generate an API token for the user.
+     *
+     * @param array $abilities
+     * @return string
+     */
+    public function generateApiToken(array $abilities = ['*'])
+    {
+        return $this->createToken('api-token', $abilities)->plainTextToken;
+    }
+
+    /**
+     * Update the user's last login timestamp.
+     *
+     * @return bool
+     */
+    public function updateLastLogin()
+    {
+        $this->last_login_at = Carbon::now();
+        return $this->save();
+    }
+
+    /**
+     * Scope a query to only include active users.
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
+    }
+
+    /**
+     * Scope a query to only include users with verified emails.
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeVerified($query)
+    {
+        return $query->whereNotNull('email_verified_at');
+    }
+
+    /**
+     * Scope a query to only include users with a specific role.
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @param string $roleName
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeWithRole($query, $roleName)
+    {
+        return $query->whereHas('roles', function ($query) use ($roleName) {
+            $query->where('name', $roleName);
+        });
+    }
+
+    /**
+     * Scope a query to only include users with a specific permission.
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @param string $permission
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeWithPermission($query, $permission)
+    {
+        return $query->whereHas('roles.permissions', function ($query) use ($permission) {
+            $query->where('name', $permission);
+        });
+    }
+
+    /**
+     * Load the user with all common relationships.
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeWithCommonRelations($query)
+    {
+        return $query->with(['profile', 'roles.permissions']);
+    }
+
+    /**
+     * Toggle the user's active status.
+     *
+     * @return bool
+     */
+    public function toggleActive()
+    {
+        $this->is_active = !$this->is_active;
+        return $this->save();
+    }
+
+    /**
+     * Toggle MFA for the user.
+     *
+     * @return bool
+     */
+    public function toggleMfa()
+    {
+        $this->has_mfa_enabled = !$this->has_mfa_enabled;
+        return $this->save();
+    }
+}
