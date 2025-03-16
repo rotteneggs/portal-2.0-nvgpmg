@@ -1,0 +1,329 @@
+name: Deploy to Production
+
+on:
+  workflow_run:
+    workflows: ['Backend CI', 'Frontend CI']
+    branches: ['main']
+    types: ['completed']
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type 'yes' to confirm production deployment"
+        required: true
+        type: string
+
+env:
+  AWS_REGION: us-east-1
+  EKS_CLUSTER_NAME: admissions-production
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE: ${{ github.repository }}/backend
+  FRONTEND_IMAGE: ${{ github.repository }}/frontend
+  TERRAFORM_DIR: infrastructure/terraform/environments/production
+  KUSTOMIZE_DIR: infrastructure/kubernetes/overlays/production
+
+jobs:
+  check-workflows:
+    name: Check Workflow Status and Approval
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || (github.event_name == 'workflow_dispatch' && github.event.inputs.confirmation == 'yes') }}
+    steps:
+      - name: Echo success
+        run: echo 'Prerequisite workflows completed successfully or manual approval received. Proceeding with production deployment.'
+
+  deploy-infrastructure:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+    needs: [check-workflows]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.PRODUCTION_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.PRODUCTION_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: '1.4.x'
+      
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ${{ env.TERRAFORM_DIR }}
+      
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: ${{ env.TERRAFORM_DIR }}
+      
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+        working-directory: ${{ env.TERRAFORM_DIR }}
+      
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+        working-directory: ${{ env.TERRAFORM_DIR }}
+      
+      - name: Export Terraform Outputs
+        run: terraform output -json > terraform-outputs.json
+        working-directory: ${{ env.TERRAFORM_DIR }}
+      
+      - name: Upload Terraform Outputs
+        uses: actions/upload-artifact@v3
+        with:
+          name: terraform-outputs
+          path: ${{ env.TERRAFORM_DIR }}/terraform-outputs.json
+
+  deploy-blue-environment:
+    name: Deploy Blue Environment
+    runs-on: ubuntu-latest
+    needs: [deploy-infrastructure]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Download Terraform Outputs
+        uses: actions/download-artifact@v3
+        with:
+          name: terraform-outputs
+          path: .
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.PRODUCTION_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.PRODUCTION_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.25.0'
+      
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
+      
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Set image tags in kustomization
+        run: cd ${{ env.KUSTOMIZE_DIR }} && kustomize edit set image ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}=${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:sha-$(echo ${{ github.sha }} | cut -c1-7) ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}=${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:sha-$(echo ${{ github.sha }} | cut -c1-7)
+      
+      - name: Deploy blue environment
+        run: kubectl apply -k ${{ env.KUSTOMIZE_DIR }}/blue
+      
+      - name: Wait for blue deployment to complete
+        run: kubectl rollout status deployment/backend-blue -n admissions-production && kubectl rollout status deployment/frontend-blue -n admissions-production
+
+  smoke-tests:
+    name: Run Smoke Tests on Blue Environment
+    runs-on: ubuntu-latest
+    needs: [deploy-blue-environment]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install dependencies
+        run: npm ci
+        working-directory: src/web
+      
+      - name: Run API smoke tests
+        run: npm run test:smoke-api
+        working-directory: src/web
+        env:
+          API_BASE_URL: 'https://api-blue.admissions.example.edu'
+      
+      - name: Run UI smoke tests
+        run: npm run test:smoke-ui
+        working-directory: src/web
+        env:
+          APP_URL: 'https://blue.admissions.example.edu'
+
+  gradual-traffic-shift:
+    name: Gradual Traffic Shift to Blue Environment
+    runs-on: ubuntu-latest
+    needs: [smoke-tests]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.PRODUCTION_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.PRODUCTION_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.25.0'
+      
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
+      
+      - name: Shift 20% traffic to blue environment
+        run: kubectl apply -f ${{ env.KUSTOMIZE_DIR }}/traffic-shift-20.yaml
+      
+      - name: Wait for 5 minutes and monitor
+        run: sleep 300
+      
+      - name: Shift 50% traffic to blue environment
+        run: kubectl apply -f ${{ env.KUSTOMIZE_DIR }}/traffic-shift-50.yaml
+      
+      - name: Wait for 5 minutes and monitor
+        run: sleep 300
+      
+      - name: Shift 100% traffic to blue environment
+        run: kubectl apply -f ${{ env.KUSTOMIZE_DIR }}/traffic-shift-100.yaml
+      
+      - name: Verify traffic shift
+        run: kubectl get virtualservice -n admissions-production
+
+  post-deployment-tests:
+    name: Run Post-Deployment Tests
+    runs-on: ubuntu-latest
+    needs: [gradual-traffic-shift]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install dependencies
+        run: npm ci
+        working-directory: src/web
+      
+      - name: Run production verification tests
+        run: npm run test:production
+        working-directory: src/web
+        env:
+          API_BASE_URL: 'https://api.admissions.example.edu'
+          APP_URL: 'https://admissions.example.edu'
+
+  cleanup-green-environment:
+    name: Clean Up Green Environment
+    runs-on: ubuntu-latest
+    needs: [post-deployment-tests]
+    if: success()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.PRODUCTION_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.PRODUCTION_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.25.0'
+      
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
+      
+      - name: Remove green environment
+        run: kubectl delete -k ${{ env.KUSTOMIZE_DIR }}/green
+      
+      - name: Rename blue to green for next deployment
+        run: kubectl apply -f ${{ env.KUSTOMIZE_DIR }}/rename-blue-to-green.yaml
+
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: [post-deployment-tests, cleanup-green-environment]
+    if: always()
+    steps:
+      - name: Check deployment status
+        id: check
+        run: echo "status=${{ needs.post-deployment-tests.result == 'success' && 'success' || 'failure' }}" >> $GITHUB_OUTPUT
+      
+      - name: Send Slack notification - Success
+        if: steps.check.outputs.status == 'success'
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          channel-id: ${{ secrets.PRODUCTION_SLACK_CHANNEL_ID }}
+          slack-message: "✅ Production deployment successful! New version is now live at https://admissions.example.edu"
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      
+      - name: Send Slack notification - Failure
+        if: steps.check.outputs.status == 'failure'
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          channel-id: ${{ secrets.PRODUCTION_SLACK_CHANNEL_ID }}
+          slack-message: "❌ Production deployment failed! Please check the workflow logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      
+      - name: Create deployment record
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const result = '${{ steps.check.outputs.status }}';
+            const message = result === 'success' ? '✅ Production deployment completed successfully' : '❌ Production deployment failed';
+            
+            github.rest.repos.createDeployment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: '${{ github.sha }}',
+              environment: 'production',
+              auto_merge: false,
+              required_contexts: [],
+              description: message
+            });
+
+  rollback:
+    name: Rollback on Failure
+    runs-on: ubuntu-latest
+    needs: [post-deployment-tests]
+    if: failure()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.PRODUCTION_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.PRODUCTION_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.25.0'
+      
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
+      
+      - name: Rollback to green environment
+        run: kubectl apply -f ${{ env.KUSTOMIZE_DIR }}/traffic-shift-green-100.yaml
+      
+      - name: Verify rollback
+        run: kubectl get virtualservice -n admissions-production
+      
+      - name: Send rollback notification
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          channel-id: ${{ secrets.PRODUCTION_SLACK_CHANNEL_ID }}
+          slack-message: "🔄 Production deployment failed! Automatically rolled back to previous version."
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
