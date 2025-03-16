@@ -1,0 +1,174 @@
+version: '3.8'
+
+services:
+  # Laravel backend application with API services
+  backend:
+    build:
+      context: ../../src/backend
+      dockerfile: docker/Dockerfile
+      target: development
+      args:
+        APP_ENV: local
+        APP_DEBUG: 'true'
+    volumes:
+      - ../../src/backend:/var/www/html
+      - backend-storage:/var/www/html/storage
+    environment:
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - APP_URL=http://localhost
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_DATABASE=admissions_platform
+      - DB_USERNAME=admissions_user
+      - DB_PASSWORD=admissions_password
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=null
+      - MAIL_HOST=mailhog
+      - MAIL_PORT=1025
+      - MAIL_USERNAME=null
+      - MAIL_PASSWORD=null
+      - MAIL_ENCRYPTION=null
+      - MAIL_FROM_ADDRESS=noreply@admissions.local
+      - MAIL_FROM_NAME=Admissions
+      - QUEUE_CONNECTION=redis
+      - SESSION_DRIVER=redis
+      - CACHE_DRIVER=redis
+      - FILESYSTEM_DISK=local
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - admissions-network
+    ports:
+      - "8000:80"
+
+  # Laravel queue worker for background processing
+  queue-worker:
+    build:
+      context: ../../src/backend
+      dockerfile: docker/Dockerfile
+      target: development
+      args:
+        APP_ENV: local
+        APP_DEBUG: 'true'
+    volumes:
+      - ../../src/backend:/var/www/html
+      - backend-storage:/var/www/html/storage
+    command: ["php", "artisan", "queue:work", "--queue=high,default,documents,integrations", "--tries=3", "--backoff=3", "--sleep=3"]
+    environment:
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_DATABASE=admissions_platform
+      - DB_USERNAME=admissions_user
+      - DB_PASSWORD=admissions_password
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=null
+      - QUEUE_CONNECTION=redis
+      - SESSION_DRIVER=redis
+      - CACHE_DRIVER=redis
+      - FILESYSTEM_DISK=local
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - admissions-network
+
+  # React frontend application with hot reloading for development
+  frontend:
+    build:
+      context: ../../src/web
+      dockerfile: Dockerfile
+      target: development
+      args:
+        REACT_APP_API_BASE_URL: 'http://localhost:8000/api'
+        REACT_APP_API_VERSION: 'v1'
+        REACT_APP_ENV: 'development'
+        REACT_APP_DEBUG: 'true'
+        REACT_APP_WEBSOCKET_URL: 'ws://localhost:8000'
+    volumes:
+      - ../../src/web:/app
+      - /app/node_modules
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - WDS_SOCKET_PORT=3000
+    ports:
+      - "3000:3000"
+    networks:
+      - admissions-network
+
+  # MySQL database server for the application
+  mysql:
+    image: mysql:8.0
+    volumes:
+      - mysql-data:/var/lib/mysql
+    environment:
+      - MYSQL_DATABASE=admissions_platform
+      - MYSQL_USER=admissions_user
+      - MYSQL_PASSWORD=admissions_password
+      - MYSQL_ROOT_PASSWORD=root_password
+    ports:
+      - "3306:3306"
+    networks:
+      - admissions-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "admissions_user", "-padmissions_password"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # Redis server for caching, session management, and queue processing
+  redis:
+    image: redis:7.0-alpine
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - admissions-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Mail testing service for development
+  mailhog:
+    image: mailhog/mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - admissions-network
+
+  # Database management interface for development
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    environment:
+      - PMA_HOST=mysql
+      - PMA_PORT=3306
+      - PMA_USER=root
+      - PMA_PASSWORD=root_password
+    ports:
+      - "8080:80"
+    depends_on:
+      - mysql
+    networks:
+      - admissions-network
+
+volumes:
+  mysql-data:
+    driver: local
+  redis-data:
+    driver: local
+  backend-storage:
+    driver: local
+
+networks:
+  admissions-network:
+    driver: bridge
