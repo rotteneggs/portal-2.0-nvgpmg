@@ -1,0 +1,26 @@
+User-agent: *
+
+# Allow public pages
+Allow: /
+Allow: /login
+Allow: /register
+Allow: /forgot-password
+Allow: /reset-password
+Allow: /public/
+
+# Disallow sensitive areas
+Disallow: /dashboard
+Disallow: /applications
+Disallow: /documents
+Disallow: /messages
+Disallow: /payments
+Disallow: /profile
+Disallow: /admin/
+Disallow: /api/
+
+# Disallow all files in these directories
+Disallow: /assets/
+Disallow: /static/
+
+# Sitemap location
+Sitemap: https://admissions.institution.edu/sitemap.xml
